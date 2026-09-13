@@ -1,6 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {FALLBACK_GAME,EMERGENCY_GAME,validateGame,locallyCorrect,normalize,gameClueRecords,gameHasDuplicate,beforeAfterValid}=require('../src/game');
+const {FALLBACK_GAME,EMERGENCY_GAME,validateGame,locallyCorrect,normalize,responseText,gameClueRecords,gameHasDuplicate,beforeAfterValid}=require('../src/game');
 
 test('fallback game is a complete two-round Jeopardy game',()=>{
   assert.equal(validateGame(FALLBACK_GAME),true);
@@ -40,4 +40,10 @@ test('Before & After requires two answers with one exact shared bridge',()=>{
   assert.equal(beforeAfterValid({response:'Goldilocks and the Three Bears',mechanicProof:'Goldilocks || Three Bears || and'}),false);
   const invalid=structuredClone(FALLBACK_GAME);delete invalid.rounds[0].categories[5].clues[0].mechanicProof;
   assert.equal(validateGame(invalid),false);
+});
+
+test('Responses API text extraction never passes undefined to JSON parsing',()=>{
+  assert.equal(responseText({output_text:'{"ok":true}'}),'{"ok":true}');
+  assert.equal(responseText({output:[{type:'reasoning'},{type:'message',content:[{type:'output_text',text:'{"ok":true}'}]}]}),'{"ok":true}');
+  assert.equal(responseText({status:'incomplete',output:[{type:'reasoning'}]}),null);
 });
