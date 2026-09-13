@@ -39,6 +39,14 @@ test('test games reuse old boards without changing champion history',async()=>{
   assert.deepEqual(after,before);assert.match(room.message,/No results were saved/);dispose(room);
 });
 
+test('Final-only test skips directly to wagers with realistic scores',async t=>{
+  const final={category:'LANDMARKS',clue:'This Paris landmark opened in 1889.',response:'Eiffel Tower',aliases:['the Eiffel Tower']};
+  const room=makeRoom({finalOnly:true,finalClue:final}),player=await client();t.after(()=>{player.disconnect();dispose(room);});
+  room.players=[{id:player.id,name:'Tester',key:'tester',score:0,finalWager:null,finalAnswer:null,finalCorrect:null}];
+  assert.equal(room.finalOnly,true);assert.equal(room.testMode,true);assert.deepEqual(room.game.final,final);
+  assert.equal((await player.emitWithAck('startGame',{code:room.code})).ok,true);assert.equal(room.phase,'final_wager');assert.equal(room.players[0].score,12400);
+});
+
 test('responses must use Jeopardy question phrasing',()=>{
   assert.equal(phraseCorrect('What is Toronto?'),true);
   assert.equal(phraseCorrect('Who was Marie Curie?'),true);

@@ -11,7 +11,13 @@ const FALLBACK_GAME = {
         { name: 'BOOK SMARTS', clues: [clue('George Orwell wrote this novel about Big Brother.', '1984'), clue('Sherlock Holmes lives at this London address.', '221B Baker Street'), clue('This author created Anne of Green Gables.', 'Lucy Maud Montgomery'), clue('A 14-line poem is usually called this.', 'sonnet'), clue('This Greek epic follows Odysseus home from Troy.', 'The Odyssey')] },
         { name: 'SCIENCE WORDS', clues: [clue('The process by which plants convert light into chemical energy.', 'photosynthesis'), clue('The basic unit of heredity.', 'gene'), clue('This force keeps planets in orbit.', 'gravity'), clue('A solution with pH below 7 has this property.', 'acidic'), clue('The SI unit of electrical resistance.', 'ohm')] },
         { name: 'AT THE MOVIES', clues: [clue('This 1993 film brought dinosaurs back to a theme park.', 'Jurassic Park'), clue('The kingdom in Frozen is called this.', 'Arendelle'), clue('He directed Jaws and E.T.', 'Steven Spielberg'), clue('This archaeologist carries a whip and fears snakes.', 'Indiana Jones'), clue('The Best Picture Oscar statuette is plated in this metal.', 'gold')] },
-        { name: 'BEFORE & AFTER', clues: [clue('A fairy-tale sleeper who is also a biological wonder of the world.', 'Sleeping Beauty and the Beast'), clue('A hot breakfast grain that commits three home invasions.', 'Goldilocks and the Three Bears'), clue('A Beatles road that is also a grand English church.', 'Abbey Road'), clue('A red gemstone that slippers Dorothy home.', 'ruby slippers'), clue('The Bard’s tragic prince meets a breakfast egg dish.', 'Hamlet omelet')] }
+        { name: 'BEFORE & AFTER', clues: [
+          {...clue('The slumbering fairy-tale princess meets the romance set in an enchanted castle.', 'Sleeping Beauty and the Beast'),mechanicProof:'Sleeping Beauty || Beauty and the Beast || Beauty'},
+          {...clue('Nursery-rhyme hill climbers meet the First Lady who entered the White House in 2021.', 'Jack and Jill Biden'),mechanicProof:'Jack and Jill || Jill Biden || Jill'},
+          {...clue('The Beatles’ final recorded album meets the speedy Looney Tunes bird.', 'Abbey Road Runner'),mechanicProof:'Abbey Road || Road Runner || Road'},
+          {...clue('A Rolling Stones song meets the actress from Looking for Mr. Goodbar.', 'Ruby Tuesday Weld'),mechanicProof:'Ruby Tuesday || Tuesday Weld || Tuesday'},
+          {...clue('The 1941 Orson Welles film meets the biblical brothers who were sons of Adam and Eve.', 'Citizen Kane and Abel'),mechanicProof:'Citizen Kane || Kane and Abel || Kane'}
+        ] }
       ], dailyDoubles: [[2, 3]]
     },
     {
@@ -45,7 +51,13 @@ const EMERGENCY_GAME = {
       {name:'DATES IN HISTORY',clues:[clue('In 1969, humans first walked on this celestial body.','the Moon'),clue('The Battle of Hastings took place in this year.','1066'),clue('This ship struck an iceberg in April 1912.','Titanic'),clue('The Congress of Vienna concluded in this year, just before Waterloo.','1815'),clue('The Defenestration of Prague helped ignite this 17th-century conflict.','Thirty Years’ War')]},
       {name:'CLASSICAL MUSIC',clues:[clue('He composed the Fifth Symphony whose opening is often rendered “da-da-da-dum.”','Ludwig van Beethoven'),clue('This Mozart opera features the Queen of the Night.','The Magic Flute'),clue('The Four Seasons is a set of violin concertos by this composer.','Antonio Vivaldi'),clue('This Russian composer wrote The Rite of Spring.','Igor Stravinsky'),clue('The Enigma Variations were composed by this Englishman.','Edward Elgar')]},
       {name:'SPACE',clues:[clue('This planet is closest to the Sun.','Mercury'),clue('The Great Red Spot is a storm on this planet.','Jupiter'),clue('A star’s colour and luminosity are plotted on this diagram.','Hertzsprung–Russell diagram'),clue('This boundary around a black hole marks the point of no return.','event horizon'),clue('Discovered in 1930, this dwarf planet was named by Venetia Burney.','Pluto')]},
-      {name:'BEFORE & AFTER',clues:[clue('The Kansas girl who visits Oz meets winds blowing at 39 to 54 miles per hour.','Dorothy Gale-force winds'),clue('Nursery-rhyme hill climbers meet the first lady who entered the White House in 2021.','Jack and Jill Biden'),clue('Shakespeare’s Danish prince meets the Duke of Sussex.','Hamlet Prince Harry'),clue('A Dickens miser meets Disney’s billionaire cartoon duck.','Ebenezer Scrooge McDuck'),clue('A Tolstoy novel meets the U.S. volunteer program founded in 1961.','War and Peace Corps')]}
+      {name:'BEFORE & AFTER',clues:[
+        {...clue('The Kansas girl who visits Oz meets winds blowing at 39 to 54 miles per hour.','Dorothy Gale-force winds'),mechanicProof:'Dorothy Gale || gale-force winds || Gale'},
+        {...clue('Sherwood Forest’s charitable outlaw meets a decorative feature above a car engine.','Robin Hood ornament'),mechanicProof:'Robin Hood || hood ornament || Hood'},
+        {...clue('Melville’s great white whale novel meets the actor who played Rob Petrie.','Moby Dick Van Dyke'),mechanicProof:'Moby Dick || Dick Van Dyke || Dick'},
+        {...clue('A Dickens miser meets Disney’s billionaire cartoon duck.','Ebenezer Scrooge McDuck'),mechanicProof:'Ebenezer Scrooge || Scrooge McDuck || Scrooge'},
+        {...clue('A Tolstoy novel meets the U.S. volunteer program founded in 1961.','War and Peace Corps'),mechanicProof:'War and Peace || Peace Corps || Peace'}
+      ]}
     ],dailyDoubles:[[1,3],[5,4]]}
   ],
   final:{category:'U.S. PRESIDENTS',clue:'This president is the only person elected to the office four times.',response:'Franklin D. Roosevelt',aliases:['Franklin Roosevelt','FDR']}
@@ -75,9 +87,15 @@ function locallyCorrect(given, item) {
 }
 function categoryRuleValid(category){
   const name=String(category?.name||''),match=name.match(/\b(?:starts?|begins?)\s+with\s+(?:the\s+letter\s+)?["'“”]?([a-z0-9])\b/i);
-  if(!match)return true;
-  const required=match[1].toLowerCase();
-  return category.clues.every(item=>String(item.response||'').trim().replace(/^(?:the|a|an)\s+/i,'').replace(/^[^a-z0-9]+/i,'').toLowerCase().startsWith(required));
+  if(match){const required=match[1].toLowerCase();return category.clues.every(item=>String(item.response||'').trim().replace(/^(?:the|a|an)\s+/i,'').replace(/^[^a-z0-9]+/i,'').toLowerCase().startsWith(required));}
+  if(/\bbefore\s*(?:&|and)\s*after\b/i.test(name))return category.clues.every(beforeAfterValid);
+  return true;
+}
+function beforeAfterValid(item){
+  const parts=String(item?.mechanicProof||'').split('||').map(x=>x.trim());if(parts.length!==3||parts.some(x=>!x))return false;
+  const [first,second,bridge]=parts.map(clueFingerprint),response=clueFingerprint(item.response),bridgeWords=bridge.split(' '),firstWords=first.split(' '),secondWords=second.split(' ');
+  if(firstWords.slice(-bridgeWords.length).join(' ')!==bridge||secondWords.slice(0,bridgeWords.length).join(' ')!==bridge)return false;
+  return response===[...firstWords,...secondWords.slice(bridgeWords.length)].join(' ');
 }
 function validateGame(game){
   return !!(game?.rounds?.length===2&&game.rounds.every((r,ri)=>r.categories?.length===6&&r.categories.every(c=>c.name&&c.clues?.length===5&&c.clues.every(q=>q.clue&&q.response)&&categoryRuleValid(c))&&r.dailyDoubles?.length===(ri?2:1))&&game.final?.category&&game.final?.clue&&game.final?.response);
@@ -85,7 +103,7 @@ function validateGame(game){
 
 async function generateGame(avoid=[]){
   if(!process.env.OPENAI_API_KEY)throw new Error('No OpenAI key');
-  const clueSchema={type:'object',additionalProperties:false,properties:{clue:{type:'string'},response:{type:'string'},aliases:{type:'array',items:{type:'string'},minItems:1,maxItems:5}},required:['clue','response','aliases']};
+  const clueSchema={type:'object',additionalProperties:false,properties:{clue:{type:'string'},response:{type:'string'},aliases:{type:'array',items:{type:'string'},minItems:1,maxItems:5},mechanicProof:{type:'string'}},required:['clue','response','aliases','mechanicProof']};
   const categorySchema={type:'object',additionalProperties:false,properties:{name:{type:'string'},clues:{type:'array',minItems:5,maxItems:5,items:clueSchema}},required:['name','clues']};
   const roundSchema={type:'object',additionalProperties:false,properties:{title:{type:'string'},categories:{type:'array',minItems:6,maxItems:6,items:categorySchema}},required:['title','categories']};
   const schema={
@@ -96,11 +114,19 @@ async function generateGame(avoid=[]){
     },
     required:['rounds','final']
   };
-  const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:AbortSignal.timeout(180000),headers:{Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({model:process.env.OPENAI_MODEL||'gpt-5-mini',max_output_tokens:20000,instructions:'Create a complete, family-safe Jeopardy-style game. Use six distinct categories and five clues per category in each round, rising sharply in difficulty. Clues are declarative answers; responses are concise. Use broad knowledge across science, history, arts, language, geography and popular culture. Avoid ambiguity, trick wording, politics, current events, advertising and repeated concepts. Every clue and response must genuinely satisfy its category. Before returning, explicitly verify all wordplay constraints internally: for a category such as Starts With S, every canonical response (after an optional article) must start with S; likewise enforce ends-with, contains, rhyme, letter-count, quotation-mark, before-and-after, and other category rules. Do not use a constrained category unless all five responses satisfy it. Round titles must be JEOPARDY! and DOUBLE JEOPARDY!. Do not repeat or lightly rephrase any supplied prior clue. Return only schema-valid JSON.',input:`Fresh game seed ${crypto.randomUUID()}. Avoid these previous clues:\n${avoid.slice(-1000).join('\n')}`,text:{format:{type:'json_schema',name:'jeopardy_game',strict:true,schema}}})});
+  const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:AbortSignal.timeout(180000),headers:{Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({model:process.env.OPENAI_MODEL||'gpt-5-mini',max_output_tokens:20000,instructions:'Create a complete, family-safe Jeopardy-style game. Use six distinct categories and five clues per category in each round, rising sharply in difficulty. Clues are declarative answers; responses are concise. Use broad knowledge across science, history, arts, language, geography and popular culture. Avoid ambiguity, trick wording, politics, current events, advertising and repeated concepts. Every clue and response must genuinely satisfy its category. Classic Jeopardy wordplay categories are welcome, but their mechanics are mandatory. BEFORE & AFTER means two real answers overlap on the exact same bridge word or phrase, which appears only once in the combined response. Each clue must independently clue both halves in order. Example: Jack and Jill + Jill Biden = Jack and Jill Biden; never merely put two unrelated answers next to each other. For every clue, set mechanicProof to "standard" unless it is BEFORE & AFTER; for BEFORE & AFTER use exactly "FIRST ANSWER || SECOND ANSWER || SHARED BRIDGE". Before returning, verify all constraints: Starts With S responses must start with S after an optional article; likewise enforce ends-with, contains, rhyme, letter-count, quotation-mark, and every other stated rule. Do not use a constrained category unless all five responses satisfy it. Round titles must be JEOPARDY! and DOUBLE JEOPARDY!. Do not repeat or lightly rephrase any supplied prior clue. Return only schema-valid JSON.',input:`Fresh game seed ${crypto.randomUUID()}. Avoid these previous clues:\n${avoid.slice(-1000).join('\n')}`,text:{format:{type:'json_schema',name:'jeopardy_game',strict:true,schema}}})});
   if(!response.ok)throw new Error(`OpenAI ${response.status}: ${await response.text()}`);
   const data=await response.json(); const output=data.output_text||data.output?.flatMap(x=>x.content||[]).find(x=>x.type==='output_text')?.text;
   const game=JSON.parse(output);game.rounds[0].dailyDoubles=[[Math.floor(Math.random()*6),1+Math.floor(Math.random()*4)]];const first=[Math.floor(Math.random()*6),1+Math.floor(Math.random()*4)];let second;do second=[Math.floor(Math.random()*6),1+Math.floor(Math.random()*4)];while(second[0]===first[0]&&second[1]===first[1]);game.rounds[1].dailyDoubles=[first,second];if(!validateGame(game))throw new Error('Generated game failed validation');
   return game;
+}
+
+async function generateFinalClue(avoid=[]){
+  if(!process.env.OPENAI_API_KEY)throw new Error('OpenAI is required to prepare a fresh Final Jeopardy clue.');
+  const schema={type:'object',additionalProperties:false,properties:{category:{type:'string'},clue:{type:'string'},response:{type:'string'},aliases:{type:'array',items:{type:'string'},minItems:1,maxItems:5}},required:['category','clue','response','aliases']};
+  const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:AbortSignal.timeout(60000),headers:{Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({model:process.env.OPENAI_MODEL||'gpt-5-mini',max_output_tokens:1200,instructions:'Write one fresh, family-safe Final Jeopardy clue. It should require reasoning from two useful pieces of information, have one unambiguous canonical response, and feel challenging but gettable. Avoid current events, politics, advertising, wordplay categories, and any prior clue or fact supplied. Return only schema-valid JSON.',input:`Fresh Final Jeopardy test seed ${crypto.randomUUID()}. Never repeat these prior clues:\n${avoid.slice(-1200).join('\n')}`,text:{format:{type:'json_schema',name:'final_jeopardy_clue',strict:true,schema}}})});
+  if(!response.ok)throw new Error(`OpenAI ${response.status}: ${await response.text()}`);const data=await response.json(),output=data.output_text||data.output?.flatMap(x=>x.content||[]).find(x=>x.type==='output_text')?.text,item=JSON.parse(output);
+  if(!item.category||!item.clue||!item.response)throw new Error('Generated Final Jeopardy clue failed validation.');return item;
 }
 
 async function judge(given,item){
@@ -108,4 +134,4 @@ async function judge(given,item){
   try{const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:AbortSignal.timeout(10000),headers:{Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({model:process.env.OPENAI_JUDGE_MODEL||'gpt-5-mini',instructions:'Judge a Jeopardy response. Ignore missing question phrasing, articles, spelling, harmless speech-to-text errors, and surnames when unambiguous. Accept only the same factual answer. Return JSON.',input:JSON.stringify({clue:item.clue,expected:item.response,aliases:item.aliases||[],given}),text:{format:{type:'json_schema',name:'judgment',strict:true,schema:{type:'object',additionalProperties:false,properties:{correct:{type:'boolean'}},required:['correct']}}}})});if(!response.ok)return false;const data=await response.json();const output=data.output_text||data.output?.flatMap(x=>x.content||[]).find(x=>x.type==='output_text')?.text;return JSON.parse(output).correct===true;}catch{return false;}
 }
 
-module.exports={FALLBACK_GAME,EMERGENCY_GAME,normalize,clueFingerprint,gameClueRecords,gameHasDuplicate,locallyCorrect,categoryRuleValid,validateGame,generateGame,judge};
+module.exports={FALLBACK_GAME,EMERGENCY_GAME,normalize,clueFingerprint,gameClueRecords,gameHasDuplicate,locallyCorrect,categoryRuleValid,beforeAfterValid,validateGame,generateGame,generateFinalClue,judge};

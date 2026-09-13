@@ -5,7 +5,7 @@ const http=require('node:http');
 const express=require('express');
 const {Server}=require('socket.io');
 const QRCode=require('qrcode');
-const {FALLBACK_GAME,EMERGENCY_GAME,normalize,clueFingerprint,gameClueRecords,gameHasDuplicate,validateGame,generateGame,judge}=require('./src/game');
+const {FALLBACK_GAME,EMERGENCY_GAME,normalize,clueFingerprint,gameClueRecords,gameHasDuplicate,validateGame,generateGame,generateFinalClue,judge}=require('./src/game');
 
 const app=express(),server=http.createServer(app),io=new Server(server,{maxHttpBufferSize:2e6});
 app.use(express.json({limit:'2mb'}));app.use(express.static(path.join(__dirname,'public')));
@@ -29,6 +29,9 @@ function saveBankSync(){atomicJsonSync(bankPath,gameBank);}
 function saveLedgerSync(){atomicJsonSync(ledgerPath,clueLedger);}
 function allKnownRecords(){return [...clueLedger.entries,...gameBank.flatMap(gameClueRecords)];}
 function reserveGame(game){if(!validateGame(game))throw new Error('This game contains an invalid category or incomplete clue.');if(gameHasDuplicate(game,clueLedger.entries))throw new Error('This game overlaps the permanent clue ledger.');clueLedger.entries.push(...gameClueRecords(game).map(x=>({...x,reservedAt:new Date().toISOString()})));saveLedgerSync();}
+function finalRecord(item){return {clue:item.clue,response:item.response,category:item.category,fingerprint:clueFingerprint(item.clue),factFingerprint:`${clueFingerprint(item.category)}|${clueFingerprint(item.response)}`};}
+function reserveFinal(item){const record=finalRecord(item);if(!record.fingerprint||gameHasDuplicate({rounds:[],final:item},clueLedger.entries))throw new Error('That Final Jeopardy clue overlaps the permanent clue ledger.');clueLedger.entries.push({...record,reservedAt:new Date().toISOString(),source:'final-test'});saveLedgerSync();}
+async function takeFreshFinal(){for(let attempt=0;attempt<3;attempt++){const item=await generateFinalClue(allKnownRecords().map(x=>x.clue));if(!gameHasDuplicate({rounds:[],final:item},allKnownRecords())){reserveFinal(item);return item;}}throw new Error('OpenAI repeated a prior clue. Please try the Final Jeopardy test again.');}
 function availableBuiltIn(){return [FALLBACK_GAME,EMERGENCY_GAME].find(game=>!gameHasDuplicate(game,clueLedger.entries));}
 function takeGame(){if(process.env.NODE_ENV==='test'&&!gameBank.length)return FALLBACK_GAME;if(gameBank.length){const game=gameBank[0];reserveGame(game);gameBank.shift();try{saveBankSync();}catch(error){console.error('The clue ledger was saved, but the game bank could not be updated:',error);gameBank=[];}return game;}const builtIn=availableBuiltIn();if(builtIn){reserveGame(builtIn);return builtIn;}if(process.env.OPENAI_API_KEY)throw new Error('The unique question bank is still being prepared. Please try again shortly.');throw new Error('No unused game is available. Configure OpenAI to generate another board.');}
 function sanitizeSavedBank(){const clean=[];for(const game of gameBank){const prior=[...clueLedger.entries,...clean.flatMap(gameClueRecords)];if(validateGame(game)&&!gameHasDuplicate(game,prior))clean.push(game);}if(clean.length!==gameBank.length){gameBank=clean;saveBankSync();}}
@@ -47,10 +50,11 @@ function currentClue(room){return room.game.rounds[room.round].categories[room.s
 function dailyDouble(room,c,r){return room.game.rounds[room.round].dailyDoubles.some(([ci,ri])=>ci===c&&ri===r);}
 function eligibleFinal(room){return room.players.filter(p=>p.score>0);}
 
-function makeRoom({testMode=false}={}){
+function makeRoom({testMode=false,finalOnly=false,finalClue=null}={}){
   const era=Math.random()<.5?'trebek':'jennings';
-  const generated=!testMode&&gameBank.length>0,game=testMode?(Math.random()<.5?FALLBACK_GAME:EMERGENCY_GAME):takeGame();
-  const room={code:code(),era,logo:Math.floor(Math.random()*4),testMode,phase:'lobby',displayId:null,players:[],game:copy(game),generated,generating:!testMode&&!!process.env.OPENAI_API_KEY&&gameBank.length<12,bankReady:gameBank.length,round:0,used:[],selected:null,selectorId:null,canSelect:false,buzzedId:null,canBuzz:false,attempted:[],wager:null,wagerAudio:null,lastJudgment:null,answerDeadline:null,advanceAt:null,finalOrder:[],finalRevealIndex:0,finalRevealStep:null,championId:null,message:testMode?'Test Game: old questions; results will not be saved.':'Waiting for contestants',createdAt:Date.now()};
+  if(finalOnly&&!finalClue)throw new Error('A fresh Final Jeopardy clue is required.');
+  const generated=!testMode&&!finalOnly&&gameBank.length>0,game=finalOnly?{...copy(FALLBACK_GAME),final:copy(finalClue)}:testMode?(Math.random()<.5?FALLBACK_GAME:EMERGENCY_GAME):takeGame();
+  const room={code:code(),era,logo:Math.floor(Math.random()*4),testMode:testMode||finalOnly,finalOnly,phase:'lobby',displayId:null,players:[],game:copy(game),generated,generating:!testMode&&!finalOnly&&!!process.env.OPENAI_API_KEY&&gameBank.length<12,bankReady:gameBank.length,round:0,used:[],selected:null,selectorId:null,canSelect:false,buzzedId:null,canBuzz:false,attempted:[],wager:null,wagerAudio:null,lastJudgment:null,answerDeadline:null,advanceAt:null,finalOrder:[],finalRevealIndex:0,finalRevealStep:null,championId:null,message:finalOnly?'Final Jeopardy Test: one fresh clue; results will not be saved.':testMode?'Test Game: old questions; results will not be saved.':'Waiting for contestants',createdAt:Date.now()};
   rooms.set(room.code,room);
   ensureGameBank();
   return room;
@@ -97,7 +101,7 @@ app.post('/api/speak',async(req,res)=>{
 });
 
 io.on('connection',socket=>{
-  socket.on('createRoom',({testMode=false}={},reply)=>{try{const room=makeRoom({testMode:testMode===true});room.displayId=socket.id;socket.data={roomCode:room.code,display:true};socket.join(room.code);reply?.({ok:true,code:room.code});emit(room);}catch(error){ensureGameBank();reply?.({ok:false,error:error.message||'A question bank is still being prepared.'});}});
+  socket.on('createRoom',async({testMode=false,finalOnly=false}={},reply)=>{try{const finalClue=finalOnly===true?await takeFreshFinal():null,room=makeRoom({testMode:testMode===true,finalOnly:finalOnly===true,finalClue});room.displayId=socket.id;socket.data={roomCode:room.code,display:true};socket.join(room.code);reply?.({ok:true,code:room.code});emit(room);}catch(error){ensureGameBank();reply?.({ok:false,error:error.message||'A question bank is still being prepared.'});}});
   socket.on('watchRoom',({code:raw},reply)=>{const room=rooms.get(String(raw).toUpperCase());if(!room)return reply?.({ok:false,error:'Game not found.'});room.displayId=socket.id;socket.data={roomCode:room.code,display:true};socket.join(room.code);reply?.({ok:true,room:publicRoom(room)});emit(room);});
   socket.on('joinRoom',({code:raw,name,occupation,location,signature,photo},reply)=>{
     const room=rooms.get(String(raw).toUpperCase());if(!room||room.phase!=='lobby')return reply?.({ok:false,error:'That lobby is unavailable.'});
@@ -110,7 +114,7 @@ io.on('connection',socket=>{
     room.players.push(p);socket.data={roomCode:room.code,display:false};socket.join(room.code);reply?.({ok:true,playerId:p.id});emit(room);
   });
   socket.on('rejoin',({code:raw,playerId},reply)=>{const room=rooms.get(String(raw).toUpperCase()),p=room&&getPlayer(room,playerId);if(!p)return reply?.({ok:false});const old=p.id;p.id=socket.id;p.connected=true;if(room.selectorId===old)room.selectorId=p.id;if(room.buzzedId===old)room.buzzedId=p.id;room.attempted=room.attempted.map(id=>id===old?p.id:id);socket.data={roomCode:room.code,display:false};socket.join(room.code);reply?.({ok:true,playerId:p.id});emit(room);});
-  socket.on('startGame',({code:raw},reply)=>{const room=rooms.get(String(raw).toUpperCase());if(!room||!getPlayer(room,socket.id)||room.phase!=='lobby')return reply?.({ok:false});if(!room.players.length)return reply?.({ok:false,error:'At least one contestant must join.'});room.phase='intro';room.message='Introducing today’s contestants';room.selectorId=room.players[0].id;reply?.({ok:true});emit(room);});
+  socket.on('startGame',({code:raw},reply)=>{const room=rooms.get(String(raw).toUpperCase());if(!room||!getPlayer(room,socket.id)||room.phase!=='lobby')return reply?.({ok:false});if(!room.players.length)return reply?.({ok:false,error:'At least one contestant must join.'});room.selectorId=room.players[0].id;if(room.finalOnly){const totals=[12400,15600,9800];room.players.forEach((p,i)=>p.score=totals[i]||10000);beginFinal(room);}else{room.phase='intro';room.message='Introducing today’s contestants';}reply?.({ok:true});emit(room);});
   socket.on('introFinished',({code:raw})=>{const room=rooms.get(String(raw).toUpperCase());if(!room||!isDisplay(socket,room)||room.phase!=='intro')return;startCategories(room);});
   socket.on('categoriesRead',({code:raw})=>{const room=rooms.get(String(raw).toUpperCase());if(!room||!isDisplay(socket,room)||room.phase!=='categories')return;requestSelection(room);});
   socket.on('selectionPromptRead',({code:raw})=>{const room=rooms.get(String(raw).toUpperCase());if(!room||!isDisplay(socket,room)||room.phase!=='board')return;room.canSelect=true;room.message='Make a selection on the contestant phone.';emit(room);});
@@ -140,4 +144,4 @@ async function finishGame(room){room.phase='final_results';const winner=[...room
 function dispose(room){clearRoomTimer(room);rooms.delete(room.code);}
 setInterval(()=>{for(const room of rooms.values())if(Date.now()-room.createdAt>8*60*60*1000)dispose(room);},30*60*1000).unref();
 if(require.main===module)server.listen(process.env.PORT||3000,()=>{console.log(`Jeopardy listening on ${process.env.PORT||3000}`);ensureGameBank();});
-module.exports={app,server,io,rooms,makeRoom,publicRoom,introLine,firstName,validWagerAudio,values,dailyDouble,finishClue,finishGame,phraseCorrect,beginSelectedClue,expireAnswer,prepareFinalReveal,advanceFinalReveal,dispose};
+module.exports={app,server,io,rooms,makeRoom,publicRoom,introLine,firstName,validWagerAudio,values,dailyDouble,finishClue,finishGame,phraseCorrect,beginSelectedClue,expireAnswer,prepareFinalReveal,advanceFinalReveal,finalRecord,reserveFinal,dispose};
