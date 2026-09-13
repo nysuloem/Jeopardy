@@ -20,3 +20,6 @@ html,body,#app{width:100%;height:100%;min-height:0;overflow:hidden}.tv-frame{pos
 
 /* The board is the entire presentation; reference photos do not sit behind it. */
 .trebek .board-stage{background-image:none;background:#050914}.jennings .board-stage{background-image:none;background:#02040b}
+
+/* Era-specific television sets, rebuilt from the supplied stage references. */
+.trebek .board-stage{background:linear-gradient(90deg,#2b9297 0 5%,#174e65 5% 11%,#12344f 11% 89%,#174e65 89% 95%,#2b9297 95% 100%)}.jennings .board-stage{background:radial-gradient(ellipse at 50% 42%,#1767c9 0 35%,#253585 57%,#52298e 100%)}.trebek .result-stage{background-color:#25586d;background-image:linear-gradient(#b9d3dc38 2px,transparent 2px),linear-gradient(90deg,#b9d3dc38 2px,transparent 2px),linear-gradient(#477a8d,#24566b 72%,#1a485d);background-size:8vh 8vh,8vh 8vh,100% 100%}.jennings .result-stage{background-color:#174c9b;background-image:radial-gradient(ellipse at 18% 78%,#1296ed 0 24%,transparent 24.5%),radial-gradient(ellipse at 82% 82%,#6339c9 0 29%,transparent 29.5%),linear-gradient(155deg,#194caa 0 34%,#392a91 34% 55%,#146fc0 55% 78%,#174586 78%)}.trebek .result-stage:after{background:linear-gradient(#3d7182,#1d5367);border-top-color:#abd9df}.jennings .result-stage:after{background:linear-gradient(110deg,#1d82ca,#3344a1 48%,#623da4);border-top-color:#74c8ff}

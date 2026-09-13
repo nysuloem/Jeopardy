@@ -2,7 +2,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 process.env.NODE_ENV='test';
 const {io:connect}=require('socket.io-client');
-const {server,io,rooms,makeRoom,publicRoom,phraseCorrect,finishGame,advanceFinalReveal,dispose}=require('../server');
+const {server,io,rooms,makeRoom,publicRoom,firstName,validWagerAudio,phraseCorrect,finishGame,advanceFinalReveal,dispose}=require('../server');
 let url;
 test.before(async()=>{await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));url=`http://127.0.0.1:${server.address().port}`;});
 test.after(async()=>{for(const room of rooms.values())dispose(room);await new Promise(resolve=>io.close(resolve));});
@@ -43,6 +43,13 @@ test('responses must use Jeopardy question phrasing',()=>{
   assert.equal(phraseCorrect('What is Toronto?'),true);
   assert.equal(phraseCorrect('Who was Marie Curie?'),true);
   assert.equal(phraseCorrect('Toronto'),false);
+});
+
+test('game narration uses first names and accepts mobile Daily Double audio formats',()=>{
+  assert.equal(firstName({name:'Jason Brown'}),'Jason');
+  assert.equal(validWagerAudio('data:audio/mp4;base64,AAAA'),true);
+  assert.equal(validWagerAudio('data:audio/webm;codecs=opus;base64,AAAA'),true);
+  assert.equal(validWagerAudio('data:text/plain;base64,AAAA'),false);
 });
 
 test('private Final Jeopardy values expose only completion status',()=>{
