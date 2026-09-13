@@ -1,6 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {FALLBACK_GAME,EMERGENCY_GAME,validateGame,locallyCorrect,normalize,responseText,gameClueRecords,gameHasDuplicate,beforeAfterValid}=require('../src/game');
+const {FALLBACK_GAME,EMERGENCY_GAME,MAX_CLUE_CHARS,validateGame,locallyCorrect,normalize,responseText,gameClueRecords,gameHasDuplicate,beforeAfterValid}=require('../src/game');
 
 test('fallback game is a complete two-round Jeopardy game',()=>{
   assert.equal(validateGame(FALLBACK_GAME),true);
@@ -40,6 +40,11 @@ test('Before & After requires two answers with one exact shared bridge',()=>{
   assert.equal(beforeAfterValid({response:'Goldilocks and the Three Bears',mechanicProof:'Goldilocks || Three Bears || and'}),false);
   const invalid=structuredClone(FALLBACK_GAME);delete invalid.rounds[0].categories[5].clues[0].mechanicProof;
   assert.equal(validateGame(invalid),false);
+});
+
+test('oversized clues are rejected instead of being squeezed onto the TV',()=>{
+  const longRound=structuredClone(FALLBACK_GAME);longRound.rounds[0].categories[0].clues[0].clue='x'.repeat(MAX_CLUE_CHARS+1);assert.equal(validateGame(longRound),false);
+  const longFinal=structuredClone(FALLBACK_GAME);longFinal.final.clue=Array.from({length:25},()=> 'short').join(' ');assert.equal(validateGame(longFinal),false);
 });
 
 test('Responses API text extraction never passes undefined to JSON parsing',()=>{

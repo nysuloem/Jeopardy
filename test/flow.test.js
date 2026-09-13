@@ -86,3 +86,8 @@ test('an unanswered Final Jeopardy response remains visually blank',async()=>{
   const room=makeRoom();room.phase='final_answer';room.players=[{id:'blank',name:'Blank',key:'blank',score:2000,preFinalScore:2000,finalWager:500,finalAnswer:null,finalCorrect:null}];
   await prepareFinalReveal(room);assert.equal(room.players[0].finalAnswer,'');advanceFinalReveal(room);assert.equal(publicRoom(room).players[0].finalAnswer,'');dispose(room);
 });
+
+test('Final Jeopardy reveals the correct response aloud when everyone misses',()=>{
+  const room=makeRoom();room.phase='final_reveal';room.players=[{id:'only',name:'Only',key:'only',score:1000,preFinalScore:1000,finalWager:500,finalAnswer:'Wrong',finalCorrect:false}];room.finalOrder=['only'];room.finalRevealIndex=0;room.finalRevealStep='show_wager';
+  advanceFinalReveal(room);assert.equal(room.phase,'final_correct_answer');assert.equal(publicRoom(room).game.final.response,room.game.final.response);dispose(room);
+});
