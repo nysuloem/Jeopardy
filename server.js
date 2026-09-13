@@ -13,7 +13,7 @@ app.get(['/host/:code','/join/:code'],(_req,res)=>res.sendFile(path.join(__dirna
 
 const rooms=new Map();
 const roomTimers=new Map(),speechCache=new Map();
-const dataDir=process.env.DATA_DIR||path.join(__dirname,'data');
+const dataDir=process.env.DATA_DIR||(fs.existsSync('/data')?'/data':path.join(__dirname,'data'));
 const historyPath=path.join(dataDir,'history.json');
 const bankPath=path.join(dataDir,'game-bank.json');
 const ledgerPath=path.join(dataDir,'clue-ledger.json');
@@ -33,6 +33,7 @@ function availableBuiltIn(){return [FALLBACK_GAME,EMERGENCY_GAME].find(game=>!ga
 function takeGame(){if(process.env.NODE_ENV==='test'&&!gameBank.length)return FALLBACK_GAME;if(gameBank.length){const game=gameBank[0];reserveGame(game);gameBank.shift();try{saveBankSync();}catch(error){console.error('The clue ledger was saved, but the game bank could not be updated:',error);gameBank=[];}return game;}const builtIn=availableBuiltIn();if(builtIn){reserveGame(builtIn);return builtIn;}if(process.env.OPENAI_API_KEY)throw new Error('The unique question bank is still being prepared. Please try again shortly.');throw new Error('No unused game is available. Configure OpenAI to generate another board.');}
 function sanitizeSavedBank(){const clean=[];for(const game of gameBank){const prior=[...clueLedger.entries,...clean.flatMap(gameClueRecords)];if(!gameHasDuplicate(game,prior))clean.push(game);}if(clean.length!==gameBank.length){gameBank=clean;saveBankSync();}}
 const migratedFingerprints=new Set(clueLedger.entries.map(x=>x.fingerprint));for(const oldClue of history.usedClues||[]){const fingerprint=clueFingerprint(oldClue);if(fingerprint&&!migratedFingerprints.has(fingerprint)){migratedFingerprints.add(fingerprint);clueLedger.entries.push({clue:oldClue,response:'',category:'',fingerprint,factFingerprint:'',reservedAt:'history-migration'});}}
+if(!clueLedger.entries.length){clueLedger.entries.push(...gameClueRecords(FALLBACK_GAME).map(x=>({...x,reservedAt:'legacy-first-game-migration'})));}
 sanitizeSavedBank();saveLedgerSync();
 async function ensureGameBank(target=12){if(bankGenerating||!process.env.OPENAI_API_KEY||gameBank.length>=target)return;clearTimeout(bankRetryTimer);bankRetryTimer=null;bankGenerating=true;try{let rejected=0;while(gameBank.length<target){const known=allKnownRecords(),candidate=await generateGame(known.map(x=>x.clue));if(gameHasDuplicate(candidate,known)){if(++rejected>=8)throw new Error('Too many generated games repeated a stored clue.');continue;}rejected=0;gameBank.push(candidate);bankLastError=null;saveBankSync();for(const room of rooms.values())if(room.phase==='lobby'){room.generating=gameBank.length<target;room.bankReady=gameBank.length;room.message=`${gameBank.length} of ${target} games ready.`;emit(room);}}}catch(error){bankLastError=String(error.message||error).slice(0,1000);console.warn('Question bank generation paused:',bankLastError);bankRetryTimer=setTimeout(()=>ensureGameBank(target),60000);bankRetryTimer.unref();}finally{bankGenerating=false;}}
 function playerKey(name){return normalize(name);}
