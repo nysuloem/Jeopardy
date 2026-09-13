@@ -18,13 +18,19 @@ test('host, signed contestant, clue, buzz and scoring flow work together',async 
   host.emit('introFinished',{code:room.code});await pause(10);assert.equal(room.phase,'categories');
   host.emit('categoriesRead',{code:room.code});await pause(10);assert.equal(room.phase,'board');assert.equal(room.canSelect,false);
   host.emit('selectionPromptRead',{code:room.code});await pause(10);assert.equal(room.canSelect,true);
-  player.emit('selectClue',{code:room.code,category:0,row:0});await pause(10);assert.equal(room.phase,'clue');
+  player.emit('selectClue',{code:room.code,category:0,row:0});await pause(10);assert.equal(room.phase,'selection');await pause(20);assert.equal(room.phase,'clue');
   assert.equal(publicRoom(room).game.rounds[0].categories[0].clues[0].response,null);
   host.emit('clueRead',{code:room.code});await pause(10);assert.equal(room.canBuzz,true);
   player.emit('buzz',{code:room.code});await pause(10);assert.equal(room.buzzedId,player.id);
   const answer=await player.emitWithAck('submitAnswer',{code:room.code,answer:'What is Toronto?'});
   assert.equal(answer.ok,true);assert.equal(room.players[0].score,200);assert.equal(room.phase,'review');
   assert.equal(publicRoom(room).game.rounds[0].categories[0].clues[0].response,null);
+});
+
+test('correct response is exposed only after a clue ends without a correct answer',()=>{
+  const room=makeRoom();room.round=0;room.selected={category:0,row:0};room.phase='review';room.lastJudgment={playerId:null,correct:false,revealCorrect:true,timedOut:false};
+  assert.equal(publicRoom(room).game.rounds[0].categories[0].clues[0].response,'Toronto');room.lastJudgment.revealCorrect=false;
+  assert.equal(publicRoom(room).game.rounds[0].categories[0].clues[0].response,null);dispose(room);
 });
 
 test('responses must use Jeopardy question phrasing',()=>{
