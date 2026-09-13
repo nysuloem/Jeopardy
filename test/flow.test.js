@@ -2,7 +2,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 process.env.NODE_ENV='test';
 const {io:connect}=require('socket.io-client');
-const {server,io,rooms,makeRoom,publicRoom,firstName,validWagerAudio,phraseCorrect,finishGame,advanceFinalReveal,dispose}=require('../server');
+const {server,io,rooms,makeRoom,publicRoom,firstName,validWagerAudio,phraseCorrect,finishGame,prepareFinalReveal,advanceFinalReveal,dispose}=require('../server');
 let url;
 test.before(async()=>{await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));url=`http://127.0.0.1:${server.address().port}`;});
 test.after(async()=>{for(const room of rooms.values())dispose(room);await new Promise(resolve=>io.close(resolve));});
@@ -41,10 +41,14 @@ test('test games reuse old boards without changing champion history',async()=>{
 
 test('Final-only test skips directly to wagers with realistic scores',async t=>{
   const final={category:'LANDMARKS',clue:'This Paris landmark opened in 1889.',response:'Eiffel Tower',aliases:['the Eiffel Tower']};
-  const room=makeRoom({finalOnly:true,finalClue:final}),player=await client();t.after(()=>{player.disconnect();dispose(room);});
+  const room=makeRoom({finalOnly:true,finalClue:final}),host=await client(),player=await client();t.after(()=>{host.disconnect();player.disconnect();dispose(room);});
+  await host.emitWithAck('watchRoom',{code:room.code});
   room.players=[{id:player.id,name:'Tester',key:'tester',score:0,finalWager:null,finalAnswer:null,finalCorrect:null}];
   assert.equal(room.finalOnly,true);assert.equal(room.testMode,true);assert.deepEqual(room.game.final,final);
-  assert.equal((await player.emitWithAck('startGame',{code:room.code})).ok,true);assert.equal(room.phase,'final_wager');assert.equal(room.players[0].score,12400);
+  assert.equal((await player.emitWithAck('startGame',{code:room.code})).ok,true);assert.equal(room.phase,'final_wager');assert.equal(room.players[0].score,12400);assert.equal(room.canFinalWager,false);
+  assert.equal((await player.emitWithAck('finalWager',{code:room.code,wager:1000})).ok,false);
+  host.emit('finalWagerPromptRead',{code:room.code});await pause(10);assert.equal(room.canFinalWager,true);
+  assert.equal((await player.emitWithAck('finalWager',{code:room.code,wager:1000})).ok,true);assert.equal(room.phase,'final_clue');
 });
 
 test('responses must use Jeopardy question phrasing',()=>{
@@ -76,4 +80,9 @@ test('Final Jeopardy reveals low score first and applies wagers only when reveal
   advanceFinalReveal(room);assert.equal(room.finalRevealStep,'ask_wager');assert.equal(room.players[1].score,1000);
   advanceFinalReveal(room);assert.equal(room.finalRevealStep,'show_wager');assert.equal(room.players[1].score,400);assert.equal(publicRoom(room).players[1].finalWager,600);
   advanceFinalReveal(room);assert.equal(room.finalRevealIndex,1);assert.equal(publicRoom(room).activeFinalId,'mid');dispose(room);
+});
+
+test('an unanswered Final Jeopardy response remains visually blank',async()=>{
+  const room=makeRoom();room.phase='final_answer';room.players=[{id:'blank',name:'Blank',key:'blank',score:2000,preFinalScore:2000,finalWager:500,finalAnswer:null,finalCorrect:null}];
+  await prepareFinalReveal(room);assert.equal(room.players[0].finalAnswer,'');advanceFinalReveal(room);assert.equal(publicRoom(room).players[0].finalAnswer,'');dispose(room);
 });
