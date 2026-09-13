@@ -5,7 +5,7 @@ const http=require('node:http');
 const express=require('express');
 const {Server}=require('socket.io');
 const QRCode=require('qrcode');
-const {FALLBACK_GAME,normalize,clueFingerprint,gameClueRecords,gameHasDuplicate,generateGame,judge}=require('./src/game');
+const {FALLBACK_GAME,EMERGENCY_GAME,normalize,clueFingerprint,gameClueRecords,gameHasDuplicate,generateGame,judge}=require('./src/game');
 
 const app=express(),server=http.createServer(app),io=new Server(server,{maxHttpBufferSize:2e6});
 app.use(express.json({limit:'2mb'}));app.use(express.static(path.join(__dirname,'public')));
@@ -22,18 +22,19 @@ function loadHistory(){try{return {...emptyHistory(),...JSON.parse(fs.readFileSy
 let history=loadHistory();
 let gameBank=[];try{const saved=JSON.parse(fs.readFileSync(bankPath,'utf8'));if(Array.isArray(saved))gameBank=saved;}catch{}
 let clueLedger={version:1,entries:[]};try{const saved=JSON.parse(fs.readFileSync(ledgerPath,'utf8'));if(Array.isArray(saved?.entries))clueLedger={version:1,entries:saved.entries};}catch{}
-let bankGenerating=false;
+let bankGenerating=false,bankLastError=null,bankRetryTimer=null;
 async function saveHistory(){await fsp.mkdir(dataDir,{recursive:true});const temp=`${historyPath}.tmp`;await fsp.writeFile(temp,JSON.stringify(history,null,2));await fsp.rename(temp,historyPath);}
 function atomicJsonSync(target,value){fs.mkdirSync(dataDir,{recursive:true});const temp=`${target}.${process.pid}.tmp`;fs.writeFileSync(temp,JSON.stringify(value));fs.renameSync(temp,target);}
 function saveBankSync(){atomicJsonSync(bankPath,gameBank);}
 function saveLedgerSync(){atomicJsonSync(ledgerPath,clueLedger);}
 function allKnownRecords(){return [...clueLedger.entries,...gameBank.flatMap(gameClueRecords)];}
 function reserveGame(game){if(gameHasDuplicate(game,clueLedger.entries))throw new Error('This game overlaps the permanent clue ledger.');clueLedger.entries.push(...gameClueRecords(game).map(x=>({...x,reservedAt:new Date().toISOString()})));saveLedgerSync();}
-function takeGame(){if(process.env.NODE_ENV==='test'&&!gameBank.length)return FALLBACK_GAME;if(gameBank.length){const game=gameBank[0];reserveGame(game);gameBank.shift();try{saveBankSync();}catch(error){console.error('The clue ledger was saved, but the game bank could not be updated:',error);gameBank=[];}return game;}if(process.env.OPENAI_API_KEY&&gameHasDuplicate(FALLBACK_GAME,clueLedger.entries))throw new Error('The unique question bank is still being prepared. Please try again shortly.');reserveGame(FALLBACK_GAME);return FALLBACK_GAME;}
+function availableBuiltIn(){return [FALLBACK_GAME,EMERGENCY_GAME].find(game=>!gameHasDuplicate(game,clueLedger.entries));}
+function takeGame(){if(process.env.NODE_ENV==='test'&&!gameBank.length)return FALLBACK_GAME;if(gameBank.length){const game=gameBank[0];reserveGame(game);gameBank.shift();try{saveBankSync();}catch(error){console.error('The clue ledger was saved, but the game bank could not be updated:',error);gameBank=[];}return game;}const builtIn=availableBuiltIn();if(builtIn){reserveGame(builtIn);return builtIn;}if(process.env.OPENAI_API_KEY)throw new Error('The unique question bank is still being prepared. Please try again shortly.');throw new Error('No unused game is available. Configure OpenAI to generate another board.');}
 function sanitizeSavedBank(){const clean=[];for(const game of gameBank){const prior=[...clueLedger.entries,...clean.flatMap(gameClueRecords)];if(!gameHasDuplicate(game,prior))clean.push(game);}if(clean.length!==gameBank.length){gameBank=clean;saveBankSync();}}
 const migratedFingerprints=new Set(clueLedger.entries.map(x=>x.fingerprint));for(const oldClue of history.usedClues||[]){const fingerprint=clueFingerprint(oldClue);if(fingerprint&&!migratedFingerprints.has(fingerprint)){migratedFingerprints.add(fingerprint);clueLedger.entries.push({clue:oldClue,response:'',category:'',fingerprint,factFingerprint:'',reservedAt:'history-migration'});}}
 sanitizeSavedBank();saveLedgerSync();
-async function ensureGameBank(target=12){if(bankGenerating||!process.env.OPENAI_API_KEY||gameBank.length>=target)return;bankGenerating=true;try{let rejected=0;while(gameBank.length<target){const known=allKnownRecords(),candidate=await generateGame(known.map(x=>x.clue));if(gameHasDuplicate(candidate,known)){if(++rejected>=8)throw new Error('Too many generated games repeated a stored clue.');continue;}rejected=0;gameBank.push(candidate);saveBankSync();for(const room of rooms.values())if(room.phase==='lobby'){room.generating=gameBank.length<target;room.bankReady=gameBank.length;room.message=`${gameBank.length} of ${target} games ready.`;emit(room);}}}catch(error){console.warn('Question bank generation paused:',error.message);}finally{bankGenerating=false;}}
+async function ensureGameBank(target=12){if(bankGenerating||!process.env.OPENAI_API_KEY||gameBank.length>=target)return;clearTimeout(bankRetryTimer);bankRetryTimer=null;bankGenerating=true;try{let rejected=0;while(gameBank.length<target){const known=allKnownRecords(),candidate=await generateGame(known.map(x=>x.clue));if(gameHasDuplicate(candidate,known)){if(++rejected>=8)throw new Error('Too many generated games repeated a stored clue.');continue;}rejected=0;gameBank.push(candidate);bankLastError=null;saveBankSync();for(const room of rooms.values())if(room.phase==='lobby'){room.generating=gameBank.length<target;room.bankReady=gameBank.length;room.message=`${gameBank.length} of ${target} games ready.`;emit(room);}}}catch(error){bankLastError=String(error.message||error).slice(0,1000);console.warn('Question bank generation paused:',bankLastError);bankRetryTimer=setTimeout(()=>ensureGameBank(target),60000);bankRetryTimer.unref();}finally{bankGenerating=false;}}
 function playerKey(name){return normalize(name);}
 function code(){let value;do value=Math.random().toString(36).slice(2,7).toUpperCase();while(rooms.has(value));return value;}
 function copy(value){return structuredClone(value);}
@@ -77,7 +78,7 @@ function advanceRound(room){if(room.phase!=='round_break')return;if(room.round==
 
 app.get('/api/room/:code/qr',async(req,res)=>{const room=rooms.get(req.params.code.toUpperCase());if(!room)return res.sendStatus(404);res.type('png').send(await QRCode.toBuffer(`${req.protocol}://${req.get('host')}/join/${room.code}`,{width:500,margin:1}));});
 app.get('/api/history',(req,res)=>res.json({games:history.games.slice(-10).reverse(),champion:history.lastWinnerKey?history.players[history.lastWinnerKey]:null}));
-app.get('/api/game-bank',(_req,res)=>res.json({ready:gameBank.length,target:12,generating:bankGenerating,configured:!!process.env.OPENAI_API_KEY,reservedClues:clueLedger.entries.length,deduplication:'persistent-volume-ledger'}));
+app.get('/api/game-bank',(_req,res)=>res.json({ready:gameBank.length,target:12,generating:bankGenerating,configured:!!process.env.OPENAI_API_KEY,playableNow:gameBank.length>0||!!availableBuiltIn(),reservedClues:clueLedger.entries.length,deduplication:'persistent-volume-ledger',lastError:bankLastError}));
 app.post('/api/speak',async(req,res)=>{
   const text=String(req.body?.text||'').trim().slice(0,600),role=String(req.body?.role||'host');
   if(!text)return res.status(400).json({error:'Text is required.'});

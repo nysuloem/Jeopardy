@@ -1,6 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {FALLBACK_GAME,validateGame,locallyCorrect,normalize,gameClueRecords,gameHasDuplicate}=require('../src/game');
+const {FALLBACK_GAME,EMERGENCY_GAME,validateGame,locallyCorrect,normalize,gameClueRecords,gameHasDuplicate}=require('../src/game');
 
 test('fallback game is a complete two-round Jeopardy game',()=>{
   assert.equal(validateGame(FALLBACK_GAME),true);
@@ -21,4 +21,9 @@ test('duplicate protection catches repeated clues and repeated facts',()=>{
   assert.equal(gameHasDuplicate(FALLBACK_GAME,[records[0]]),true);
   const changed=structuredClone(FALLBACK_GAME);changed.rounds[0].categories[0].clues[0].clue='Name the Canadian city containing the CN Tower.';
   assert.equal(gameHasDuplicate(changed,[records[0]]),true);
+});
+
+test('emergency game is complete and does not overlap the original board',()=>{
+  assert.equal(validateGame(EMERGENCY_GAME),true);assert.equal(gameClueRecords(EMERGENCY_GAME).length,61);
+  assert.equal(gameHasDuplicate(EMERGENCY_GAME,gameClueRecords(FALLBACK_GAME)),false);
 });
