@@ -32,6 +32,21 @@ const FALLBACK_GAME = {
 function normalize(value='') {
   return String(value).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9 ]/g,' ').replace(/\b(who|what|where|when|is|are|was|were|a|an|the)\b/g,' ').replace(/\s+/g,' ').trim();
 }
+function clueFingerprint(value='') {
+  return String(value).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+}
+function gameClueRecords(game){
+  const records=[];
+  for(const round of game?.rounds||[])for(const category of round.categories||[])for(const item of category.clues||[])records.push({clue:item.clue,response:item.response,category:category.name,fingerprint:clueFingerprint(item.clue),factFingerprint:`${clueFingerprint(category.name)}|${clueFingerprint(item.response)}`});
+  if(game?.final?.clue)records.push({clue:game.final.clue,response:game.final.response,category:game.final.category,fingerprint:clueFingerprint(game.final.clue),factFingerprint:`${clueFingerprint(game.final.category)}|${clueFingerprint(game.final.response)}`});
+  return records;
+}
+function gameHasDuplicate(game,priorRecords=[]){
+  const clues=new Set(priorRecords.map(x=>typeof x==='string'?clueFingerprint(x):x.fingerprint||clueFingerprint(x.clue)));
+  const facts=new Set(priorRecords.map(x=>typeof x==='string'?'':x.factFingerprint||`${clueFingerprint(x.category)}|${clueFingerprint(x.response)}`).filter(x=>x&&x!=='|'));
+  for(const item of gameClueRecords(game)){if(!item.fingerprint||clues.has(item.fingerprint)||facts.has(item.factFingerprint))return true;clues.add(item.fingerprint);facts.add(item.factFingerprint);}
+  return false;
+}
 function locallyCorrect(given, item) {
   const answer=normalize(given); if(!answer)return false;
   return [item.response,...(item.aliases||[])].some(value=>{const target=normalize(value);return answer===target||answer.includes(target)||target.includes(answer);});
@@ -53,7 +68,7 @@ async function generateGame(avoid=[]){
     },
     required:['rounds','final']
   };
-  const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:AbortSignal.timeout(120000),headers:{Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({model:process.env.OPENAI_MODEL||'gpt-5-mini',instructions:'Create a complete, family-safe Jeopardy-style game. Use six distinct categories and five clues per category in each round, rising sharply in difficulty. Clues are declarative answers; responses are concise. Use broad knowledge across science, history, arts, language, geography and popular culture. Avoid ambiguity, trick wording, politics, current events, advertising and repeated concepts. Round titles must be JEOPARDY! and DOUBLE JEOPARDY!. Round one must have exactly one unique Daily Double coordinate; round two exactly two unique coordinates. Do not reuse any supplied prior clue. Return only schema-valid JSON.',input:`Fresh game seed ${crypto.randomUUID()}. Avoid these previous clues:\n${avoid.slice(-180).join('\n')}`,text:{format:{type:'json_schema',name:'jeopardy_game',strict:true,schema}}})});
+  const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:AbortSignal.timeout(120000),headers:{Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({model:process.env.OPENAI_MODEL||'gpt-5-mini',instructions:'Create a complete, family-safe Jeopardy-style game. Use six distinct categories and five clues per category in each round, rising sharply in difficulty. Clues are declarative answers; responses are concise. Use broad knowledge across science, history, arts, language, geography and popular culture. Avoid ambiguity, trick wording, politics, current events, advertising and repeated concepts. Round titles must be JEOPARDY! and DOUBLE JEOPARDY!. Round one must have exactly one unique Daily Double coordinate; round two exactly two unique coordinates. Do not repeat or lightly rephrase any supplied prior clue. Return only schema-valid JSON.',input:`Fresh game seed ${crypto.randomUUID()}. Avoid these previous clues:\n${avoid.slice(-1000).join('\n')}`,text:{format:{type:'json_schema',name:'jeopardy_game',strict:true,schema}}})});
   if(!response.ok)throw new Error(`OpenAI ${response.status}: ${await response.text()}`);
   const data=await response.json(); const output=data.output_text||data.output?.flatMap(x=>x.content||[]).find(x=>x.type==='output_text')?.text;
   const game=JSON.parse(output); if(!validateGame(game))throw new Error('Generated game failed validation');
@@ -66,4 +81,4 @@ async function judge(given,item){
   try{const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:AbortSignal.timeout(10000),headers:{Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({model:process.env.OPENAI_JUDGE_MODEL||'gpt-5-mini',instructions:'Judge a Jeopardy response. Ignore missing question phrasing, articles, spelling, harmless speech-to-text errors, and surnames when unambiguous. Accept only the same factual answer. Return JSON.',input:JSON.stringify({clue:item.clue,expected:item.response,aliases:item.aliases||[],given}),text:{format:{type:'json_schema',name:'judgment',strict:true,schema:{type:'object',additionalProperties:false,properties:{correct:{type:'boolean'}},required:['correct']}}}})});if(!response.ok)return false;const data=await response.json();const output=data.output_text||data.output?.flatMap(x=>x.content||[]).find(x=>x.type==='output_text')?.text;return JSON.parse(output).correct===true;}catch{return false;}
 }
 
-module.exports={FALLBACK_GAME,normalize,locallyCorrect,validateGame,generateGame,judge};
+module.exports={FALLBACK_GAME,normalize,clueFingerprint,gameClueRecords,gameHasDuplicate,locallyCorrect,validateGame,generateGame,judge};

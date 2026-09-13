@@ -13,7 +13,8 @@ A TV-first Jeopardy game with randomly selected Alex Trebek and Ken Jennings era
 - Spoken category introductions, player-by-player selection prompts, 15-second microphone responses that contestants explicitly submit, and automatic round progression
 - Spoken Daily Double wagers, including "True Daily Double," plus a broadcast-style animated reveal
 - Typed-only, draft-safe Final Jeopardy responses with the full 30-second music cue and low-to-high staged reveal
-- A background-generated bank of 12 complete games, persisted between deployments
+- A consumable, background-generated bank of 12 complete games
+- An uncapped permanent clue ledger on the Railway volume; assigned clues are reserved before play and exact clues or repeated category/response facts are rejected from every refill
 - Durable champion, game, and clue history on a Railway volume
 
 ## Railway
@@ -27,7 +28,7 @@ Mount a persistent volume at `/data`, then configure:
 
 Railway runs `npm start` and serves both the game and Socket.IO server from `PORT`.
 
-After deployment, visit `/api/game-bank` to see the 12-game bank fill in. Generation runs in the background, one full game at a time, so the app remains playable while the bank is being prepared. Keep the `/data` volume mounted so generated games and champion history survive redeployments.
+After deployment, visit `/api/game-bank` to see the 12-game bank fill in and the number of permanently reserved clues. Generation runs in the background, one full game at a time. Each assigned game is removed from the queue and replaced with a newly generated game. Keep the `/data` volume mounted so the bank, clue ledger, and champion history survive redeployments.
 
 ## Local development
 
