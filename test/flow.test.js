@@ -2,7 +2,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 process.env.NODE_ENV='test';
 const {io:connect}=require('socket.io-client');
-const {server,io,rooms,makeRoom,publicRoom,phraseCorrect,advanceFinalReveal,dispose}=require('../server');
+const {server,io,rooms,makeRoom,publicRoom,phraseCorrect,finishGame,advanceFinalReveal,dispose}=require('../server');
 let url;
 test.before(async()=>{await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));url=`http://127.0.0.1:${server.address().port}`;});
 test.after(async()=>{for(const room of rooms.values())dispose(room);await new Promise(resolve=>io.close(resolve));});
@@ -31,6 +31,12 @@ test('correct response is exposed only after a clue ends without a correct answe
   const room=makeRoom();room.round=0;room.selected={category:0,row:0};room.phase='review';room.lastJudgment={playerId:null,correct:false,revealCorrect:true,timedOut:false};
   assert.equal(publicRoom(room).game.rounds[0].categories[0].clues[0].response,'Toronto');room.lastJudgment.revealCorrect=false;
   assert.equal(publicRoom(room).game.rounds[0].categories[0].clues[0].response,null);dispose(room);
+});
+
+test('test games reuse old boards without changing champion history',async()=>{
+  const before=await (await fetch(`${url}/api/history`)).json(),room=makeRoom({testMode:true});assert.equal(room.testMode,true);assert.equal(room.generated,false);assert.equal(room.generating,false);
+  room.players=[{id:'tester',name:'Tester',key:'tester',score:2400}];await finishGame(room);const after=await (await fetch(`${url}/api/history`)).json();
+  assert.deepEqual(after,before);assert.match(room.message,/No results were saved/);dispose(room);
 });
 
 test('responses must use Jeopardy question phrasing',()=>{
