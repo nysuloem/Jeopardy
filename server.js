@@ -81,21 +81,15 @@ function advanceRound(room){if(room.phase!=='round_break')return;if(room.round==
 app.get('/api/room/:code/qr',async(req,res)=>{const room=rooms.get(req.params.code.toUpperCase());if(!room)return res.sendStatus(404);res.type('png').send(await QRCode.toBuffer(`${req.protocol}://${req.get('host')}/join/${room.code}`,{width:500,margin:1}));});
 app.get('/api/history',(req,res)=>res.json({games:history.games.slice(-10).reverse(),champion:history.lastWinnerKey?history.players[history.lastWinnerKey]:null}));
 app.get('/api/game-bank',(_req,res)=>res.json({ready:gameBank.length,target:12,generating:bankGenerating,configured:!!process.env.OPENAI_API_KEY,playableNow:gameBank.length>0||!!availableBuiltIn(),reservedClues:clueLedger.entries.length,deduplication:'persistent-volume-ledger',lastError:bankLastError}));
-app.get('/api/intro-transcript-once',async(req,res)=>{
-  if(req.query.token!=='jeopardy-intro-0913')return res.sendStatus(404);
-  try{
-    const transcribe=async file=>{const form=new FormData();form.append('model','gpt-4o-mini-transcribe');form.append('response_format','verbose_json');form.append('timestamp_granularities[]','segment');form.append('file',new Blob([await fsp.readFile(file)],{type:'audio/mpeg'}),path.basename(file));const response=await fetch('https://api.openai.com/v1/audio/transcriptions',{method:'POST',headers:{Authorization:`Bearer ${process.env.OPENAI_API_KEY}`},body:form});if(!response.ok)throw new Error(`Transcription ${response.status}: ${await response.text()}`);return response.json();};
-    res.json({ken:await transcribe(path.join(__dirname,'public','assets','ken-introduction-web.mp3')),trebek:await transcribe(path.join(__dirname,'public','assets','alex-introduction-web.mp3'))});
-  }catch(error){res.status(502).json({error:String(error.message||error)});}
-});
 app.post('/api/speak',async(req,res)=>{
   const text=String(req.body?.text||'').trim().slice(0,600),role=String(req.body?.role||'host');
   if(!text)return res.status(400).json({error:'Text is required.'});
   if(!process.env.OPENAI_API_KEY)return res.status(503).json({error:'OpenAI speech is not configured.'});
-  const voice=role==='announcer'?'onyx':role==='trebek'?'cedar':'marin';
+  const voice={announcer:'onyx',trebek:'cedar',jennings:'marin'}[role]||'marin';
   const key=`${voice}:${text}`,cached=speechCache.get(key);if(cached){res.type('audio/mpeg');return res.send(cached);}
   try{
-    const response=await fetch('https://api.openai.com/v1/audio/speech',{method:'POST',signal:AbortSignal.timeout(45000),headers:{Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({model:process.env.OPENAI_TTS_MODEL||'gpt-4o-mini-tts',voice,input:text,instructions:role==='announcer'?'Speak as an energetic, polished television game-show announcer.':`Speak as a warm, confident television quiz-show host. Read the clue clearly and naturally.`,response_format:'mp3'})});
+    const instructions=role==='announcer'?'Speak as an energetic, polished television game-show announcer.':role==='trebek'?'Speak as a measured, warm, authoritative classic television quiz-show host. Read clearly, with restrained wit and unhurried pacing.':'Speak as a bright, conversational modern television quiz-show host. Read clearly, with crisp pacing and friendly energy.';
+    const response=await fetch('https://api.openai.com/v1/audio/speech',{method:'POST',signal:AbortSignal.timeout(45000),headers:{Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({model:process.env.OPENAI_TTS_MODEL||'gpt-4o-mini-tts',voice,input:text,instructions,response_format:'mp3'})});
     if(!response.ok)throw new Error(`OpenAI speech ${response.status}`);const audio=Buffer.from(await response.arrayBuffer());speechCache.set(key,audio);if(speechCache.size>120)speechCache.delete(speechCache.keys().next().value);res.type('audio/mpeg').send(audio);
   }catch(error){console.warn(error.message);res.status(502).json({error:'Speech is temporarily unavailable.'});}
 });
