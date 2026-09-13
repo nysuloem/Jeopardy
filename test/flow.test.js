@@ -2,7 +2,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 process.env.NODE_ENV='test';
 const {io:connect}=require('socket.io-client');
-const {server,io,rooms,makeRoom,publicRoom,firstName,validWagerAudio,phraseCorrect,finishGame,prepareFinalReveal,advanceFinalReveal,dispose}=require('../server');
+const {server,io,rooms,ANSWER_TIME_MS,makeRoom,publicRoom,firstName,validWagerAudio,phraseCorrect,finishGame,prepareFinalReveal,advanceFinalReveal,dispose}=require('../server');
 let url;
 test.before(async()=>{await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));url=`http://127.0.0.1:${server.address().port}`;});
 test.after(async()=>{for(const room of rooms.values())dispose(room);await new Promise(resolve=>io.close(resolve));});
@@ -21,7 +21,7 @@ test('host, signed contestant, clue, buzz and scoring flow work together',async 
   player.emit('selectClue',{code:room.code,category:0,row:0});await pause(10);assert.equal(room.phase,'selection');await pause(20);assert.equal(room.phase,'clue');
   assert.equal(publicRoom(room).game.rounds[0].categories[0].clues[0].response,null);
   host.emit('clueRead',{code:room.code});await pause(10);assert.equal(room.canBuzz,true);
-  player.emit('buzz',{code:room.code});await pause(10);assert.equal(room.buzzedId,player.id);
+  player.emit('buzz',{code:room.code});await pause(10);assert.equal(room.buzzedId,player.id);assert.ok(room.answerDeadline-Date.now()<=ANSWER_TIME_MS&&room.answerDeadline-Date.now()>ANSWER_TIME_MS-1000);
   const answer=await player.emitWithAck('submitAnswer',{code:room.code,answer:'What is Toronto?'});
   assert.equal(answer.ok,true);assert.equal(room.players[0].score,200);assert.equal(room.phase,'review');
   assert.equal(publicRoom(room).game.rounds[0].categories[0].clues[0].response,null);
