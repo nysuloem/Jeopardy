@@ -27,3 +27,10 @@ test('emergency game is complete and does not overlap the original board',()=>{
   assert.equal(validateGame(EMERGENCY_GAME),true);assert.equal(gameClueRecords(EMERGENCY_GAME).length,61);
   assert.equal(gameHasDuplicate(EMERGENCY_GAME,gameClueRecords(FALLBACK_GAME)),false);
 });
+
+test('letter-constrained categories reject responses that break the category rule',()=>{
+  const invalid=structuredClone(FALLBACK_GAME);invalid.rounds[0].categories[0].name='STARTS WITH S';
+  assert.equal(validateGame(invalid),false);
+  invalid.rounds[0].categories[0].clues.forEach((item,index)=>{item.response=['Saturn','Spain','Shakespeare','Sodium','Sydney'][index];});
+  assert.equal(validateGame(invalid),true);
+});

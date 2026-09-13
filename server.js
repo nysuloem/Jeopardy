@@ -5,7 +5,7 @@ const http=require('node:http');
 const express=require('express');
 const {Server}=require('socket.io');
 const QRCode=require('qrcode');
-const {FALLBACK_GAME,EMERGENCY_GAME,normalize,clueFingerprint,gameClueRecords,gameHasDuplicate,generateGame,judge}=require('./src/game');
+const {FALLBACK_GAME,EMERGENCY_GAME,normalize,clueFingerprint,gameClueRecords,gameHasDuplicate,validateGame,generateGame,judge}=require('./src/game');
 
 const app=express(),server=http.createServer(app),io=new Server(server,{maxHttpBufferSize:2e6});
 app.use(express.json({limit:'2mb'}));app.use(express.static(path.join(__dirname,'public')));
@@ -28,10 +28,10 @@ function atomicJsonSync(target,value){fs.mkdirSync(dataDir,{recursive:true});con
 function saveBankSync(){atomicJsonSync(bankPath,gameBank);}
 function saveLedgerSync(){atomicJsonSync(ledgerPath,clueLedger);}
 function allKnownRecords(){return [...clueLedger.entries,...gameBank.flatMap(gameClueRecords)];}
-function reserveGame(game){if(gameHasDuplicate(game,clueLedger.entries))throw new Error('This game overlaps the permanent clue ledger.');clueLedger.entries.push(...gameClueRecords(game).map(x=>({...x,reservedAt:new Date().toISOString()})));saveLedgerSync();}
+function reserveGame(game){if(!validateGame(game))throw new Error('This game contains an invalid category or incomplete clue.');if(gameHasDuplicate(game,clueLedger.entries))throw new Error('This game overlaps the permanent clue ledger.');clueLedger.entries.push(...gameClueRecords(game).map(x=>({...x,reservedAt:new Date().toISOString()})));saveLedgerSync();}
 function availableBuiltIn(){return [FALLBACK_GAME,EMERGENCY_GAME].find(game=>!gameHasDuplicate(game,clueLedger.entries));}
 function takeGame(){if(process.env.NODE_ENV==='test'&&!gameBank.length)return FALLBACK_GAME;if(gameBank.length){const game=gameBank[0];reserveGame(game);gameBank.shift();try{saveBankSync();}catch(error){console.error('The clue ledger was saved, but the game bank could not be updated:',error);gameBank=[];}return game;}const builtIn=availableBuiltIn();if(builtIn){reserveGame(builtIn);return builtIn;}if(process.env.OPENAI_API_KEY)throw new Error('The unique question bank is still being prepared. Please try again shortly.');throw new Error('No unused game is available. Configure OpenAI to generate another board.');}
-function sanitizeSavedBank(){const clean=[];for(const game of gameBank){const prior=[...clueLedger.entries,...clean.flatMap(gameClueRecords)];if(!gameHasDuplicate(game,prior))clean.push(game);}if(clean.length!==gameBank.length){gameBank=clean;saveBankSync();}}
+function sanitizeSavedBank(){const clean=[];for(const game of gameBank){const prior=[...clueLedger.entries,...clean.flatMap(gameClueRecords)];if(validateGame(game)&&!gameHasDuplicate(game,prior))clean.push(game);}if(clean.length!==gameBank.length){gameBank=clean;saveBankSync();}}
 const migratedFingerprints=new Set(clueLedger.entries.map(x=>x.fingerprint));for(const oldClue of history.usedClues||[]){const fingerprint=clueFingerprint(oldClue);if(fingerprint&&!migratedFingerprints.has(fingerprint)){migratedFingerprints.add(fingerprint);clueLedger.entries.push({clue:oldClue,response:'',category:'',fingerprint,factFingerprint:'',reservedAt:'history-migration'});}}
 if(!clueLedger.entries.length){clueLedger.entries.push(...gameClueRecords(FALLBACK_GAME).map(x=>({...x,reservedAt:'legacy-first-game-migration'})));}
 sanitizeSavedBank();saveLedgerSync();
@@ -71,7 +71,7 @@ function schedule(room,delay,action){clearRoomTimer(room);room.advanceAt=Date.no
 function phraseCorrect(answer){return /^(what|who|where|when|why|how)\s+(is|are|was|were)\b/i.test(String(answer||'').trim());}
 function openBuzzing(room,message='Buzz in now!'){room.phase='clue';room.canBuzz=true;room.answerDeadline=null;room.message=message;emit(room);schedule(room,7000,()=>{if(room.phase!=='clue'||!room.canBuzz)return;room.canBuzz=false;room.lastJudgment={playerId:null,answer:'No response',correct:false,amount:0,revealCorrect:true,timedOut:false};room.phase='review';room.message='No contestant responded.';emit(room);scheduleReview(room);});}
 function advanceReview(room){if(!['review','daily_review'].includes(room.phase))return;if(room.phase==='review'&&room.lastJudgment?.playerId&&!room.lastJudgment.correct){room.attempted.push(room.lastJudgment.playerId);room.buzzedId=null;if(room.attempted.length<room.players.length){openBuzzing(room,'Other contestants may buzz in.');return;}}finishClue(room);}
-function scheduleReview(room){schedule(room,9000,()=>advanceReview(room));}
+function scheduleReview(room){schedule(room,45000,()=>advanceReview(room));}
 function expireAnswer(room,id,daily=false){if(!['answer','daily_answer'].includes(room.phase)||id!==(daily?room.selectorId:room.buzzedId))return;const p=getPlayer(room,id),amount=daily?room.wager:selectedValue(room);p.score-=amount;room.answerDeadline=null;room.lastJudgment={playerId:id,answer:'No response',correct:false,amount,revealCorrect:daily||room.attempted.length+1>=room.players.length,timedOut:true};room.phase=daily?'daily_review':'review';room.message='Time is up.';emit(room);scheduleReview(room);}
 function startCategories(room){room.phase='categories';room.canSelect=false;room.message=room.round===0?'Here are the categories for the Jeopardy round.':'Here are the categories for Double Jeopardy.';emit(room);}
 function requestSelection(room){room.phase='board';room.canSelect=false;room.message='The host is asking for a selection.';emit(room);}
