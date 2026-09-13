@@ -8,7 +8,9 @@ A TV-first Jeopardy game with randomly selected Alex Trebek and Ken Jennings era
 - Dynamic contestant introductions using occupation, location, and returning-champion records
 - Jeopardy, Double Jeopardy, Daily Doubles, and Final Jeopardy
 - Server-authoritative buzz lockout, scoring, private wagers, and host ruling reversal
-- OpenAI-generated boards and semantic response judging, with a complete offline fallback game
+- OpenAI-generated boards, semantic response judging, and synchronized AI host narration, with a complete offline fallback game
+- Presentation-only 16:9 TV display; clue selection, buzzing, wagers, and responses are controlled from contestant phones
+- Finger-written podium signatures, 15-second microphone responses, and automatic round progression
 - Durable champion, game, and clue history on a Railway volume
 
 ## Railway
@@ -16,7 +18,8 @@ A TV-first Jeopardy game with randomly selected Alex Trebek and Ken Jennings era
 Mount a persistent volume at `/data`, then configure:
 
 - `DATA_DIR=/data`
-- `OPENAI_API_KEY` for generated boards and semantic judging
+- `OPENAI_API_KEY` for generated boards, semantic judging, and host narration
+- `OPENAI_TTS_MODEL` optionally overrides the default `gpt-4o-mini-tts` narration model
 - `OPENAI_MODEL` optionally overrides the default `gpt-5-mini`
 
 Railway runs `npm start` and serves both the game and Socket.IO server from `PORT`.
