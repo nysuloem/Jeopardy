@@ -109,9 +109,7 @@ function editDistance(a,b){
 function tokenEquivalent(a,b){const left=responseRoot(a),right=responseRoot(b);return left===right||(left.length>=5&&right.length>=5&&editDistance(left,right)<=1);}
 function closeResponse(given,target){
   const answer=responseTokens(given),expected=responseTokens(target);if(!answer.length||!expected.length)return false;
-  if(answer.length===expected.length&&answer.every((word,index)=>tokenEquivalent(word,expected[index])))return true;
-  const matched=answer.filter(word=>expected.some(targetWord=>tokenEquivalent(word,targetWord))).length;
-  return answer.length>=2&&matched===answer.length&&matched>=Math.ceil(expected.length*.6);
+  return answer.length===expected.length&&answer.every((word,index)=>tokenEquivalent(word,expected[index]));
 }
 function locallyCorrect(given,item){
   return [item.response,...(item.aliases||[])].some(target=>closeResponse(given,target));

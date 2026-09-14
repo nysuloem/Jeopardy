@@ -17,6 +17,17 @@ app.get(['/host/:code','/join/:code'],(_req,res)=>res.sendFile(path.join(__dirna
 
 const rooms=new Map();
 const roomTimers=new Map(),speechCache=new Map();
+const JUDGING_DIAGNOSTICS=[
+  {label:'Exact response',given:'What is a narwhal?',item:{clue:'Its tusk is actually an elongated tooth.',response:'narwhal',aliases:[]},expected:true},
+  {label:'Harmless omitted qualifier',given:'What is the Pyramid of Giza?',item:{clue:'The oldest surviving Wonder of the Ancient World was built for Pharaoh Khufu.',response:'Great Pyramid of Giza',aliases:[]},expected:true},
+  {label:'Minor spelling error',given:'Who is Shakespear?',item:{clue:'This playwright created Falstaff, Prospero and King Lear.',response:'William Shakespeare',aliases:['Shakespeare']},expected:true},
+  {label:'Different animal',given:'What is a rhinoceros?',item:{clue:'Its tusk is actually an elongated tooth.',response:'narwhal',aliases:[]},expected:false},
+  {label:'Description instead of term',given:'What is an atmospheric pressure gauge?',item:{clue:'Torricelli is credited with inventing this instrument.',response:'barometer',aliases:[]},expected:false},
+  {label:'Same category, wrong animal',given:'What is a blue whale?',item:{clue:'This toothed whale has the largest brain of any animal.',response:'sperm whale',aliases:[]},expected:false},
+  {label:'Shared words, wrong title',given:'What is New York?',item:{clue:'Its longtime slogan is “All the News That’s Fit to Print.”',response:'The New York Times',aliases:['New York Times']},expected:false},
+  {label:'Related place, wrong landmark',given:'What is Paris?',item:{clue:'Gustave Eiffel’s iron landmark opened for the 1889 World’s Fair.',response:'Eiffel Tower',aliases:['the Eiffel Tower']},expected:false}
+];
+let judgingDiagnosticCache=null,judgingDiagnosticPromise=null;
 const dataDir=process.env.DATA_DIR||(fs.existsSync('/data')?'/data':path.join(__dirname,'data'));
 const historyPath=path.join(dataDir,'history.json');
 const bankPath=path.join(dataDir,'game-bank.json');
@@ -92,6 +103,14 @@ function advanceRound(room){if(room.phase!=='round_break')return;if(room.round==
 app.get('/api/room/:code/qr',async(req,res)=>{const room=rooms.get(req.params.code.toUpperCase());if(!room)return res.sendStatus(404);res.type('png').send(await QRCode.toBuffer(`${req.protocol}://${req.get('host')}/join/${room.code}`,{width:500,margin:1}));});
 app.get('/api/history',(req,res)=>res.json({games:history.games.slice(-10).reverse(),champion:history.lastWinnerKey?history.players[history.lastWinnerKey]:null}));
 app.get('/api/game-bank',(_req,res)=>res.json({ready:gameBank.length,target:GAME_BANK_TARGET,generating:bankGenerating,buildCompleted:bankBuildCompleted,buildTotal:bankBuildTotal,configured:!!process.env.OPENAI_API_KEY,playableNow:gameBank.length>0||!!availableBuiltIn(),reservedClues:clueLedger.entries.length,deduplication:'persistent-volume-ledger',lastError:bankLastError}));
+app.get('/api/judging-diagnostics',async(_req,res)=>{
+  if(!process.env.OPENAI_API_KEY)return res.status(503).json({error:'OpenAI judging is not configured.'});
+  if(judgingDiagnosticCache&&Date.now()-judgingDiagnosticCache.checkedAt<10*60*1000)return res.json(judgingDiagnosticCache);
+  try{
+    judgingDiagnosticPromise??=Promise.all(JUDGING_DIAGNOSTICS.map(async test=>{const actual=await judge(test.given,test.item);return {label:test.label,expected:test.expected,actual,passed:actual===test.expected};})).then(results=>judgingDiagnosticCache={checkedAt:Date.now(),passed:results.filter(result=>result.passed).length,total:results.length,allPassed:results.every(result=>result.passed),results}).finally(()=>judgingDiagnosticPromise=null);
+    res.json(await judgingDiagnosticPromise);
+  }catch(error){res.status(502).json({error:error.message||'The judging diagnostic could not be completed.'});}
+});
 app.post('/api/speak',async(req,res)=>{
   const text=String(req.body?.text||'').trim().slice(0,600),role=String(req.body?.role||'host');
   if(!text)return res.status(400).json({error:'Text is required.'});
@@ -152,4 +171,4 @@ async function finishGame(room){room.phase='final_results';const winner=[...room
 function dispose(room){clearRoomTimer(room);rooms.delete(room.code);}
 setInterval(()=>{for(const room of rooms.values())if(Date.now()-room.createdAt>8*60*60*1000)dispose(room);},30*60*1000).unref();
 if(require.main===module)server.listen(process.env.PORT||3000,()=>{console.log(`Jeopardy listening on ${process.env.PORT||3000}`);ensureGameBank();});
-module.exports={app,server,io,rooms,ANSWER_TIME_MS,DAILY_ANSWER_TIME_MS,GAME_BANK_TARGET,GAME_BANK_VERSION,makeRoom,publicRoom,introLine,firstName,validWagerAudio,values,dailyDouble,finishClue,finishGame,phraseCorrect,beginSelectedClue,advanceReview,expireAnswer,prepareFinalReveal,advanceFinalReveal,finalRecord,reserveFinal,dispose};
+module.exports={app,server,io,rooms,ANSWER_TIME_MS,DAILY_ANSWER_TIME_MS,GAME_BANK_TARGET,GAME_BANK_VERSION,JUDGING_DIAGNOSTICS,makeRoom,publicRoom,introLine,firstName,validWagerAudio,values,dailyDouble,finishClue,finishGame,phraseCorrect,beginSelectedClue,advanceReview,expireAnswer,prepareFinalReveal,advanceFinalReveal,finalRecord,reserveFinal,dispose};

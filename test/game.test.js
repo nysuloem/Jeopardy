@@ -13,7 +13,9 @@ test('response matching accepts Jeopardy phrasing and rejects unrelated response
   const item={response:'Frederick Banting',aliases:['Banting']};
   assert.equal(locallyCorrect('Who is Banting?',item),true);
   assert.equal(locallyCorrect('What is insulin?',item),false);
-  assert.equal(locallyCorrect('What are the Pyramids of Giza?',{response:'Great Pyramid of Giza',aliases:[]}),true);
+  assert.equal(locallyCorrect('What are the Pyramids of Giza?',{response:'Great Pyramid of Giza',aliases:[]}),false);
+  assert.equal(plausibleVariant('What are the Pyramids of Giza?',{response:'Great Pyramid of Giza',aliases:[]}),true);
+  assert.equal(locallyCorrect('What is New York?',{response:'The New York Times',aliases:[]}),false);
   assert.equal(locallyCorrect('What is a rhinoceros?',{response:'narwhal',aliases:[]}),false);
   assert.equal(plausibleVariant('What is a rhinoceros?',{response:'narwhal',aliases:[]}),false);
   assert.equal(normalize('Who is The Banting?'),'banting');
@@ -94,6 +96,6 @@ test('AI judging accepts a harmless omitted qualifier but rejects a descriptive 
   assert.equal(await judge('What is the Pyramid at Saqqara?',{clue:'This is the oldest Wonder of the Ancient World.',response:'Great Pyramid of Giza',aliases:[]}),false);
   assert.equal(await judge('What is an atmospheric pressure gauge?',{clue:'Torricelli is credited with inventing this instrument.',response:'barometer',aliases:[]}),false);
   assert.equal(await judge('What is a rhinoceros?',{clue:'Its tusk is actually an elongated tooth.',response:'narwhal',aliases:[]}),false);
-  assert.equal(calls.length,1);
+  assert.equal(calls.length,2);
   assert.match(calls[0].instructions,/Rhinoceros is NOT narwhal/);assert.match(calls[0].instructions,/Pyrimid of Giza/);
 });

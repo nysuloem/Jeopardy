@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 process.env.NODE_ENV='test';
 const {io:connect}=require('socket.io-client');
-const {server,io,rooms,ANSWER_TIME_MS,DAILY_ANSWER_TIME_MS,GAME_BANK_TARGET,GAME_BANK_VERSION,makeRoom,publicRoom,firstName,validWagerAudio,phraseCorrect,finishGame,prepareFinalReveal,advanceFinalReveal,advanceReview,dispose}=require('../server');
+const {server,io,rooms,ANSWER_TIME_MS,DAILY_ANSWER_TIME_MS,GAME_BANK_TARGET,GAME_BANK_VERSION,JUDGING_DIAGNOSTICS,makeRoom,publicRoom,firstName,validWagerAudio,phraseCorrect,finishGame,prepareFinalReveal,advanceFinalReveal,advanceReview,dispose}=require('../server');
 const {BOARD_GENERATION_TIMEOUT_MS}=require('../src/game');
 let url;
 test.before(async()=>{await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));url=`http://127.0.0.1:${server.address().port}`;});
@@ -87,6 +87,9 @@ test('landing screen shows and refreshes game-board availability',()=>{
   assert.match(client,/setInterval\(refreshBankStatus,10000\)/);
   assert.match(client,/building part \$\{bank\.buildCompleted\+1\} of \$\{bank\.buildTotal\}/);
   assert.match(client,/host\.disabled=!bank\.playableNow/);
+  assert.match(client,/id="testJudging">Run Judging Check/);
+  assert.match(client,/fetch\('\/api\/judging-diagnostics'/);
+  assert.equal(JUDGING_DIAGNOSTICS.length,8);
 });
 
 test('Trebek introduction uses the corrected contestant and host cue points',()=>{
