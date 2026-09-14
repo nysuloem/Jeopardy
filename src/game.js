@@ -212,25 +212,44 @@ async function repairGeneratedGame(game,priorRecords=[],priorCategories=[]){
   throw new Error('Generated game failed validation after targeted repairs');
 }
 
-async function generateGame(avoid=[],avoidCategories=[]){
+function categoryValidAgainst(category,priorRecords=[],priorCategories=[]){
+  if(!category?.name||category.clues?.length!==5||gameHasCategoryRepeat({rounds:[{categories:[category]}]},priorCategories))return false;
+  if(!category.clues.every(item=>clueLengthValid(item.clue)&&item.response&&clueDoesNotRevealResponse(item))||!categoryRuleValid(category))return false;
+  return !gameHasDuplicate({rounds:[{categories:[category]}]},priorRecords);
+}
+
+async function generateCategory(round,index,priorRecords,priorCategories){
+  let lastError;
+  for(let attempt=1;attempt<=8;attempt++)try{
+    const category=await requestStructured('jeopardy_category',repairCategorySchema,`Write one family-safe category with exactly five authentic Jeopardy clues for the ${round} round. The five clues are ordered from easiest to hardest. Each clue is a compact declarative statement whose missing subject is the response, never a textbook question or an instruction to name something. Use natural broadcast-ready syntax, varied openings, occasional wit, and no more than ${MAX_CLUE_WORDS} words or ${MAX_CLUE_CHARS} characters. Every clue must point uniquely to a concise canonical response, genuinely fit the category, and contain neither its response nor a distinctive response root. Aliases are only genuine equivalents, never related concepts. Do not reuse a supplied clue, fact, or category title. Classic wordplay is welcome only when every clue obeys the mechanic. BEFORE & AFTER must combine two real answers on one exact shared bridge and use mechanicProof "FIRST ANSWER || SECOND ANSWER || SHARED BRIDGE". For all other categories use mechanicProof "standard". Enforce every Starts With, Ends With, rhyme, letter-count, or quotation-mark rule across all five responses. Return only schema-valid JSON after checking all five clues.`,JSON.stringify({seed:crypto.randomUUID(),round,categorySlot:index+1,avoidCategories:priorCategories.slice(-500),avoidClues:priorRecords.slice(-700).map(item=>typeof item==='string'?item:item.clue)}),5000);
+    if(categoryValidAgainst(category,priorRecords,priorCategories))return category;
+    lastError=new Error(`Category ${index+1} failed validation`);
+  }catch(error){lastError=error;}
+  throw new Error(lastError?.message||`Category ${index+1} could not be generated`);
+}
+
+async function generateGame(avoid=[],avoidCategories=[],onProgress=()=>{}){
   if(!process.env.OPENAI_API_KEY)throw new Error('No OpenAI key');
-  const priorClues=avoid.map(item=>typeof item==='string'?item:item?.clue).filter(Boolean);
-  const clueSchema={type:'object',additionalProperties:false,properties:{clue:{type:'string',minLength:1,maxLength:MAX_CLUE_CHARS},response:{type:'string'},aliases:{type:'array',items:{type:'string'},minItems:1,maxItems:5},mechanicProof:{type:'string'}},required:['clue','response','aliases','mechanicProof']};
-  const categorySchema={type:'object',additionalProperties:false,properties:{name:{type:'string'},clues:{type:'array',minItems:5,maxItems:5,items:clueSchema}},required:['name','clues']};
-  const roundSchema={type:'object',additionalProperties:false,properties:{title:{type:'string'},categories:{type:'array',minItems:6,maxItems:6,items:categorySchema}},required:['title','categories']};
-  const schema={
-    type:'object',additionalProperties:false,
-    properties:{
-      rounds:{type:'array',minItems:2,maxItems:2,items:roundSchema},
-      final:{type:'object',additionalProperties:false,properties:{category:{type:'string'},clue:{type:'string',minLength:1,maxLength:MAX_CLUE_CHARS},response:{type:'string'},aliases:{type:'array',items:{type:'string'}}},required:['category','clue','response','aliases']}
-    },
-    required:['rounds','final']
-  };
-  const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:AbortSignal.timeout(BOARD_GENERATION_TIMEOUT_MS),headers:{Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({model:process.env.OPENAI_MODEL||'gpt-5-mini',max_output_tokens:20000,instructions:`Write a complete family-safe game in the authentic Jeopardy clue style. Use six distinct categories and five clues per category in each round. A clue is a compact declarative statement whose missing subject is the response; it is not a textbook question, definition worksheet, trivia prompt, or instruction to "name" something. Use natural broadcast-ready syntax, varied openings, occasional wit or wordplay, and one or two precise facts that point uniquely to the response. Do not begin most clues with "This." Make $200/$400 clues broadly accessible, then increase difficulty at each value; reserve specialized detail for the highest values. Difficulty should come from knowledge, association, and inference—not needlessly obscure wording or a pile of technical details. Keep every clue between roughly 8 and ${MAX_CLUE_WORDS} words and under ${MAX_CLUE_CHARS} characters. Responses must be concise canonical names. Aliases must list genuine acceptable equivalents, common short forms, surnames when unambiguous, acronyms, and harmless singular/plural variants; never list merely related things. Avoid ambiguity, trick wording, politics, current events, advertising, repeated concepts, and all supplied prior categories. Never include the canonical response, an alias, or a distinctive word-root from the response in its clue. For example, a "neutron star" response cannot have "neutron" or "neutrons" in its clue. Every clue must genuinely fit its category. Classic Jeopardy wordplay categories are welcome, but their mechanics are mandatory. BEFORE & AFTER combines two real answers on one exact shared bridge, stated once; each half must be independently clued in order. Set mechanicProof to "standard" unless it is BEFORE & AFTER; then use exactly "FIRST ANSWER || SECOND ANSWER || SHARED BRIDGE". Enforce every stated Starts With, Ends With, rhyme, letter-count, quotation-mark, or other category rule across all five responses. Round titles must be JEOPARDY! and DOUBLE JEOPARDY!. Return only schema-valid JSON after checking every clue and category.`,input:`Fresh game seed ${crypto.randomUUID()}. Do not reuse or lightly rephrase these clues:\n${priorClues.slice(-1000).join('\n')}\n\nDo not reuse any of these category titles:\n${avoidCategories.slice(-500).join('\n')}`,text:{format:{type:'json_schema',name:'jeopardy_game',strict:true,schema}}})});
-  if(!response.ok)throw new Error(`OpenAI ${response.status}: ${await response.text()}`);
-  const data=await response.json(),output=responseText(data);if(!output)throw new Error(`OpenAI returned no game JSON (${data.status||'unknown status'}).`);
-  let game=JSON.parse(output);game=await repairGeneratedGame(game,avoid,avoidCategories);game.rounds[0].dailyDoubles=[[Math.floor(Math.random()*6),1+Math.floor(Math.random()*4)]];const first=[Math.floor(Math.random()*6),1+Math.floor(Math.random()*4)];let second;do second=[Math.floor(Math.random()*6),1+Math.floor(Math.random()*4)];while(second[0]===first[0]&&second[1]===first[1]);game.rounds[1].dailyDoubles=[first,second];if(!validateGame(game))throw new Error('Generated game failed validation after targeted repairs');
-  return game;
+  const knownRecords=[...avoid],knownCategories=[...avoidCategories],rounds=[];
+  for(let roundIndex=0;roundIndex<2;roundIndex++){
+    const title=roundIndex?'DOUBLE JEOPARDY!':'JEOPARDY!',categories=[];
+    for(let categoryIndex=0;categoryIndex<6;categoryIndex++){
+      onProgress(roundIndex*6+categoryIndex,13);
+      const category=await generateCategory(title,categoryIndex,knownRecords,knownCategories);
+      categories.push(category);knownCategories.push(category.name);knownRecords.push(...gameClueRecords({rounds:[{categories:[category]}]}));
+    }
+    rounds.push({title,categories,dailyDoubles:[]});
+  }
+  let final,lastError;onProgress(12,13);
+  for(let attempt=0;attempt<8;attempt++)try{
+    final=await generateFinalClue(knownRecords.map(item=>typeof item==='string'?item:item.clue),knownCategories);
+    const shell={rounds:[],final};if(!gameHasCategoryRepeat(shell,knownCategories)&&!gameHasDuplicate(shell,knownRecords))break;
+    final=null;lastError=new Error('Final Jeopardy repeated a prior clue, response, or category.');
+  }catch(error){lastError=error;}
+  if(!final)throw lastError||new Error('Final Jeopardy could not be generated.');
+  rounds[0].dailyDoubles=[[Math.floor(Math.random()*6),1+Math.floor(Math.random()*4)]];const first=[Math.floor(Math.random()*6),1+Math.floor(Math.random()*4)];let second;do second=[Math.floor(Math.random()*6),1+Math.floor(Math.random()*4)];while(second[0]===first[0]&&second[1]===first[1]);rounds[1].dailyDoubles=[first,second];
+  const game={rounds,final};if(!validateGame(game)||gameHasDuplicate(game,avoid)||gameHasCategoryRepeat(game,avoidCategories))throw new Error('Incrementally generated game failed its final validation.');
+  onProgress(13,13);return game;
 }
 
 async function generateFinalClue(avoid=[],avoidCategories=[]){

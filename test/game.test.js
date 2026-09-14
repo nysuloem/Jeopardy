@@ -40,12 +40,11 @@ test('validation identifies individual bad clues without condemning valid board 
   assert.deepEqual(issues,[{kind:'clue',round:0,category:0,clue:0,reason:'clue reveals response'}]);
 });
 
-test('generation repairs only a failed clue and retains every valid clue',async t=>{
-  const originalKey=process.env.OPENAI_API_KEY,originalFetch=global.fetch,bad=structuredClone(FALLBACK_GAME),replacement=structuredClone(FALLBACK_GAME.rounds[0].categories[0].clues[0]);process.env.OPENAI_API_KEY='test-key';
-  bad.rounds[0].categories[0].clues[0]={clue:'Toronto is the response to this clue.',response:'Toronto',aliases:['the city of Toronto'],mechanicProof:'standard'};let calls=0;
-  global.fetch=async(_url,options)=>{calls++;const request=JSON.parse(options.body),name=request.text.format.name;if(name==='jeopardy_game')return {ok:true,json:async()=>({output_text:JSON.stringify(bad)})};assert.equal(name,'jeopardy_clue_repairs');return {ok:true,json:async()=>({output_text:JSON.stringify({repairs:[{id:'0:0:0',...replacement,mechanicProof:'standard'}]})})};};
+test('generation retries only a failed category and retains accepted categories',async t=>{
+  const originalKey=process.env.OPENAI_API_KEY,originalFetch=global.fetch,categories=FALLBACK_GAME.rounds.flatMap(round=>round.categories).map(category=>structuredClone(category)),progress=[];process.env.OPENAI_API_KEY='test-key';let calls=0,categoryCalls=0;
+  global.fetch=async(_url,options)=>{calls++;const request=JSON.parse(options.body),name=request.text.format.name;if(name==='final_jeopardy_clue')return {ok:true,json:async()=>({output_text:JSON.stringify(FALLBACK_GAME.final)})};assert.equal(name,'jeopardy_category');const index=Math.max(0,categoryCalls-1),category=structuredClone(categories[index]);if(categoryCalls++===0)category.clues[0]={clue:'Toronto is the response to this clue.',response:'Toronto',aliases:['Toronto'],mechanicProof:'standard'};return {ok:true,json:async()=>({output_text:JSON.stringify(category)})};};
   t.after(()=>{if(originalKey===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=originalKey;global.fetch=originalFetch;});
-  const game=await generateGame();assert.equal(calls,2);assert.deepEqual(game.rounds[0].categories[0].clues[0],{...replacement,mechanicProof:'standard'});assert.deepEqual(game.rounds[0].categories[0].clues[1],FALLBACK_GAME.rounds[0].categories[0].clues[1]);assert.equal(validateGame(game),true);
+  const game=await generateGame([],[],(completed,total)=>progress.push([completed,total]));assert.equal(calls,14);assert.equal(categoryCalls,13);assert.deepEqual(game.rounds[0].categories[0],categories[0]);assert.deepEqual(game.rounds[1].categories[5],categories[11]);assert.equal(validateGame(game),true);assert.deepEqual(progress.at(-1),[13,13]);
 });
 
 test('emergency game is complete and does not overlap the original board',()=>{

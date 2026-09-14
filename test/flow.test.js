@@ -74,6 +74,8 @@ test('game-bank status exposes live ready and target counts',async()=>{
   assert.equal(typeof bank.ready,'number');
   assert.equal(bank.target,GAME_BANK_TARGET);
   assert.equal(typeof bank.generating,'boolean');
+  assert.equal(typeof bank.buildCompleted,'number');
+  assert.equal(bank.buildTotal,13);
   assert.equal(typeof bank.playableNow,'boolean');
   assert.equal(BOARD_GENERATION_TIMEOUT_MS,600000);
 });
@@ -83,6 +85,7 @@ test('landing screen shows and refreshes game-board availability',()=>{
   assert.match(client,/id="bankStatus">Checking available game boards/);
   assert.match(client,/fetch\('\/api\/game-bank',\{cache:'no-store'\}\)/);
   assert.match(client,/setInterval\(refreshBankStatus,10000\)/);
+  assert.match(client,/building part \$\{bank\.buildCompleted\+1\} of \$\{bank\.buildTotal\}/);
   assert.match(client,/host\.disabled=!bank\.playableNow/);
 });
 
