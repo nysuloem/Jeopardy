@@ -1,6 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {FALLBACK_GAME,EMERGENCY_GAME,MAX_CLUE_CHARS,validateGame,locallyCorrect,normalize,responseText,gameClueRecords,gameHasDuplicate,beforeAfterValid}=require('../src/game');
+const {FALLBACK_GAME,EMERGENCY_GAME,MAX_CLUE_CHARS,validateGame,locallyCorrect,normalize,responseText,gameClueRecords,gameHasDuplicate,beforeAfterValid,judge}=require('../src/game');
 
 test('fallback game is a complete two-round Jeopardy game',()=>{
   assert.equal(validateGame(FALLBACK_GAME),true);
@@ -51,4 +51,13 @@ test('Responses API text extraction never passes undefined to JSON parsing',()=>
   assert.equal(responseText({output_text:'{"ok":true}'}),'{"ok":true}');
   assert.equal(responseText({output:[{type:'reasoning'},{type:'message',content:[{type:'output_text',text:'{"ok":true}'}]}]}),'{"ok":true}');
   assert.equal(responseText({status:'incomplete',output:[{type:'reasoning'}]}),null);
+});
+
+test('AI judging accepts a harmless omitted qualifier but rejects a descriptive substitute',async t=>{
+  const originalKey=process.env.OPENAI_API_KEY,originalFetch=global.fetch,calls=[];process.env.OPENAI_API_KEY='test-key';
+  global.fetch=async(_url,options)=>{const request=JSON.parse(options.body);calls.push(request);const given=JSON.parse(request.input).given;return {ok:true,json:async()=>({output_text:JSON.stringify({correct:/pyrimid/i.test(given)})})};};
+  t.after(()=>{if(originalKey===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=originalKey;global.fetch=originalFetch;});
+  assert.equal(await judge('What is Pyrimid of Giza?',{clue:'This is the oldest Wonder of the Ancient World.',response:'Great Pyramid of Giza',aliases:[]}),true);
+  assert.equal(await judge('What is an atmospheric pressure gauge?',{clue:'Torricelli is credited with inventing this instrument.',response:'barometer',aliases:[]}),false);
+  assert.match(calls[0].instructions,/description, definition, function/);assert.match(calls[0].instructions,/Pyrimid of Giza/);
 });

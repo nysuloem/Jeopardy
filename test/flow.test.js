@@ -2,7 +2,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 process.env.NODE_ENV='test';
 const {io:connect}=require('socket.io-client');
-const {server,io,rooms,ANSWER_TIME_MS,makeRoom,publicRoom,firstName,validWagerAudio,phraseCorrect,finishGame,prepareFinalReveal,advanceFinalReveal,dispose}=require('../server');
+const {server,io,rooms,ANSWER_TIME_MS,DAILY_ANSWER_TIME_MS,makeRoom,publicRoom,firstName,validWagerAudio,phraseCorrect,finishGame,prepareFinalReveal,advanceFinalReveal,advanceReview,dispose}=require('../server');
 let url;
 test.before(async()=>{await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));url=`http://127.0.0.1:${server.address().port}`;});
 test.after(async()=>{for(const room of rooms.values())dispose(room);await new Promise(resolve=>io.close(resolve));});
@@ -18,9 +18,9 @@ test('host, signed contestant, clue, buzz and scoring flow work together',async 
   host.emit('introFinished',{code:room.code});await pause(10);assert.equal(room.phase,'categories');
   host.emit('categoriesRead',{code:room.code});await pause(10);assert.equal(room.phase,'board');assert.equal(room.canSelect,false);
   host.emit('selectionPromptRead',{code:room.code});await pause(10);assert.equal(room.canSelect,true);
-  player.emit('selectClue',{code:room.code,category:0,row:0});await pause(10);assert.equal(room.phase,'selection');await pause(20);assert.equal(room.phase,'clue');
+  player.emit('selectClue',{code:room.code,category:0,row:0});await pause(10);assert.equal(room.phase,'selection');await pause(20);assert.equal(room.phase,'clue');assert.equal(room.clueNeedsReading,true);
   assert.equal(publicRoom(room).game.rounds[0].categories[0].clues[0].response,null);
-  host.emit('clueRead',{code:room.code});await pause(10);assert.equal(room.canBuzz,true);
+  host.emit('clueRead',{code:room.code});await pause(10);assert.equal(room.canBuzz,true);assert.equal(room.clueNeedsReading,false);
   player.emit('buzz',{code:room.code});await pause(10);assert.equal(room.buzzedId,player.id);assert.ok(room.answerDeadline-Date.now()<=ANSWER_TIME_MS&&room.answerDeadline-Date.now()>ANSWER_TIME_MS-1000);
   const answer=await player.emitWithAck('submitAnswer',{code:room.code,answer:'What is Toronto?'});
   assert.equal(answer.ok,true);assert.equal(room.players[0].score,200);assert.equal(room.phase,'review');
@@ -31,6 +31,11 @@ test('correct response is exposed only after a clue ends without a correct answe
   const room=makeRoom();room.round=0;room.selected={category:0,row:0};room.phase='review';room.lastJudgment={playerId:null,correct:false,revealCorrect:true,timedOut:false};
   assert.equal(publicRoom(room).game.rounds[0].categories[0].clues[0].response,'Toronto');room.lastJudgment.revealCorrect=false;
   assert.equal(publicRoom(room).game.rounds[0].categories[0].clues[0].response,null);dispose(room);
+});
+
+test('an incorrect response reopens buzzing without asking the display to reread the clue',()=>{
+  const room=makeRoom();room.round=0;room.selected={category:0,row:0};room.phase='review';room.players=[{id:'wrong',name:'Wrong',score:0},{id:'next',name:'Next',score:0}];room.lastJudgment={playerId:'wrong',correct:false,revealCorrect:false,timedOut:false};
+  advanceReview(room);assert.equal(room.phase,'clue');assert.equal(room.canBuzz,true);assert.equal(room.clueNeedsReading,false);dispose(room);
 });
 
 test('test games reuse old boards without changing champion history',async()=>{
@@ -49,9 +54,12 @@ test('Final-only test skips directly to wagers with realistic scores',async t=>{
   assert.equal((await player.emitWithAck('finalWager',{code:room.code,wager:1000})).ok,false);
   host.emit('finalWagerPromptRead',{code:room.code});await pause(10);assert.equal(room.canFinalWager,true);
   assert.equal((await player.emitWithAck('finalWager',{code:room.code,wager:1000})).ok,true);assert.equal(room.phase,'final_clue');
+  host.emit('clueRead',{code:room.code});await pause(10);assert.equal(room.phase,'final_answer');const deadline=room.answerDeadline;
+  assert.equal((await player.emitWithAck('finalAnswer',{code:room.code,answer:'What is the Eiffel Tower?'})).ok,true);assert.equal(room.phase,'final_answer');assert.equal(room.answerDeadline,deadline);
 });
 
 test('responses must use Jeopardy question phrasing',()=>{
+  assert.equal(ANSWER_TIME_MS,15000);assert.equal(DAILY_ANSWER_TIME_MS,15000);
   assert.equal(phraseCorrect('What is Toronto?'),true);
   assert.equal(phraseCorrect('Who was Marie Curie?'),true);
   assert.equal(phraseCorrect('Toronto'),false);
