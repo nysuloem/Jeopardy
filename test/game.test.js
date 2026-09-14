@@ -1,6 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {FALLBACK_GAME,EMERGENCY_GAME,MAX_CLUE_CHARS,validateGame,locallyCorrect,normalize,responseText,gameClueRecords,gameHasDuplicate,beforeAfterValid,clueDoesNotRevealResponse,judge}=require('../src/game');
+const {FALLBACK_GAME,EMERGENCY_GAME,MAX_CLUE_CHARS,validateGame,locallyCorrect,plausibleVariant,normalize,responseText,gameClueRecords,gameCategories,gameHasCategoryRepeat,gameHasDuplicate,beforeAfterValid,clueDoesNotRevealResponse,judge}=require('../src/game');
 
 test('fallback game is a complete two-round Jeopardy game',()=>{
   assert.equal(validateGame(FALLBACK_GAME),true);
@@ -13,6 +13,9 @@ test('response matching accepts Jeopardy phrasing and rejects unrelated response
   const item={response:'Frederick Banting',aliases:['Banting']};
   assert.equal(locallyCorrect('Who is Banting?',item),true);
   assert.equal(locallyCorrect('What is insulin?',item),false);
+  assert.equal(locallyCorrect('What are the Pyramids of Giza?',{response:'Great Pyramid of Giza',aliases:[]}),true);
+  assert.equal(locallyCorrect('What is a rhinoceros?',{response:'narwhal',aliases:[]}),false);
+  assert.equal(plausibleVariant('What is a rhinoceros?',{response:'narwhal',aliases:[]}),false);
   assert.equal(normalize('Who is The Banting?'),'banting');
 });
 
@@ -21,6 +24,14 @@ test('duplicate protection catches repeated clues and repeated facts',()=>{
   assert.equal(gameHasDuplicate(FALLBACK_GAME,[records[0]]),true);
   const changed=structuredClone(FALLBACK_GAME);changed.rounds[0].categories[0].clues[0].clue='Name the Canadian city containing the CN Tower.';
   assert.equal(gameHasDuplicate(changed,[records[0]]),true);
+});
+
+test('category protection rejects repeated titles within and across generated games',()=>{
+  assert.equal(gameCategories(FALLBACK_GAME).length,13);
+  assert.equal(gameHasCategoryRepeat(FALLBACK_GAME,[]),false);
+  assert.equal(gameHasCategoryRepeat(FALLBACK_GAME,['CANADIAN PLACES']),true);
+  const repeated=structuredClone(FALLBACK_GAME);repeated.rounds[1].categories[0].name=repeated.rounds[0].categories[0].name;
+  assert.equal(validateGame(repeated),false);
 });
 
 test('emergency game is complete and does not overlap the original board',()=>{
@@ -64,9 +75,12 @@ test('Responses API text extraction never passes undefined to JSON parsing',()=>
 
 test('AI judging accepts a harmless omitted qualifier but rejects a descriptive substitute',async t=>{
   const originalKey=process.env.OPENAI_API_KEY,originalFetch=global.fetch,calls=[];process.env.OPENAI_API_KEY='test-key';
-  global.fetch=async(_url,options)=>{const request=JSON.parse(options.body);calls.push(request);const given=JSON.parse(request.input).given;return {ok:true,json:async()=>({output_text:JSON.stringify({correct:/pyrimid/i.test(given)})})};};
+  global.fetch=async(_url,options)=>{const request=JSON.parse(options.body);calls.push(request);const given=JSON.parse(request.input).given,correct=/pyrimid/i.test(given);return {ok:true,json:async()=>({output_text:JSON.stringify({correct,verdict:correct?'harmless_variant':'related_but_different'})})};};
   t.after(()=>{if(originalKey===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=originalKey;global.fetch=originalFetch;});
   assert.equal(await judge('What is Pyrimid of Giza?',{clue:'This is the oldest Wonder of the Ancient World.',response:'Great Pyramid of Giza',aliases:[]}),true);
+  assert.equal(await judge('What is the Pyramid at Saqqara?',{clue:'This is the oldest Wonder of the Ancient World.',response:'Great Pyramid of Giza',aliases:[]}),false);
   assert.equal(await judge('What is an atmospheric pressure gauge?',{clue:'Torricelli is credited with inventing this instrument.',response:'barometer',aliases:[]}),false);
-  assert.match(calls[0].instructions,/description, definition, function/);assert.match(calls[0].instructions,/Pyrimid of Giza/);
+  assert.equal(await judge('What is a rhinoceros?',{clue:'Its tusk is actually an elongated tooth.',response:'narwhal',aliases:[]}),false);
+  assert.equal(calls.length,1);
+  assert.match(calls[0].instructions,/Rhinoceros is NOT narwhal/);assert.match(calls[0].instructions,/Pyrimid of Giza/);
 });

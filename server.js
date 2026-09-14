@@ -5,11 +5,13 @@ const http=require('node:http');
 const express=require('express');
 const {Server}=require('socket.io');
 const QRCode=require('qrcode');
-const {FALLBACK_GAME,EMERGENCY_GAME,normalize,clueFingerprint,gameClueRecords,gameHasDuplicate,validateGame,generateGame,generateFinalClue,judge}=require('./src/game');
+const {FALLBACK_GAME,EMERGENCY_GAME,normalize,clueFingerprint,gameClueRecords,gameHasCategoryRepeat,gameHasDuplicate,validateGame,generateGame,generateFinalClue,judge}=require('./src/game');
 
 const app=express(),server=http.createServer(app),io=new Server(server,{maxHttpBufferSize:2e6});
 const ANSWER_TIME_MS=15000;
 const DAILY_ANSWER_TIME_MS=15000;
+const GAME_BANK_TARGET=20;
+const GAME_BANK_VERSION=2;
 app.use(express.json({limit:'2mb'}));app.use(express.static(path.join(__dirname,'public')));
 app.get(['/host/:code','/join/:code'],(_req,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
@@ -22,25 +24,26 @@ const ledgerPath=path.join(dataDir,'clue-ledger.json');
 function emptyHistory(){return {version:1,lastWinnerKey:null,players:{},usedClues:[],games:[]};}
 function loadHistory(){try{return {...emptyHistory(),...JSON.parse(fs.readFileSync(historyPath,'utf8'))};}catch{return emptyHistory();}}
 let history=loadHistory();
-let gameBank=[];try{const saved=JSON.parse(fs.readFileSync(bankPath,'utf8'));if(Array.isArray(saved))gameBank=saved;}catch{}
+let gameBank=[];try{const saved=JSON.parse(fs.readFileSync(bankPath,'utf8'));if(saved?.version===GAME_BANK_VERSION&&Array.isArray(saved.games))gameBank=saved.games;}catch{}
 let clueLedger={version:1,entries:[]};try{const saved=JSON.parse(fs.readFileSync(ledgerPath,'utf8'));if(Array.isArray(saved?.entries))clueLedger={version:1,entries:saved.entries};}catch{}
 let bankGenerating=false,bankLastError=null,bankRetryTimer=null;
 async function saveHistory(){await fsp.mkdir(dataDir,{recursive:true});const temp=`${historyPath}.tmp`;await fsp.writeFile(temp,JSON.stringify(history,null,2));await fsp.rename(temp,historyPath);}
 function atomicJsonSync(target,value){fs.mkdirSync(dataDir,{recursive:true});const temp=`${target}.${process.pid}.tmp`;fs.writeFileSync(temp,JSON.stringify(value));fs.renameSync(temp,target);}
-function saveBankSync(){atomicJsonSync(bankPath,gameBank);}
+function saveBankSync(){atomicJsonSync(bankPath,{version:GAME_BANK_VERSION,games:gameBank});}
 function saveLedgerSync(){atomicJsonSync(ledgerPath,clueLedger);}
 function allKnownRecords(){return [...clueLedger.entries,...gameBank.flatMap(gameClueRecords)];}
+function allKnownCategories(){return [...new Set(allKnownRecords().map(record=>record.category).filter(Boolean))];}
 function reserveGame(game){if(!validateGame(game))throw new Error('This game contains an invalid category or incomplete clue.');if(gameHasDuplicate(game,clueLedger.entries))throw new Error('This game overlaps the permanent clue ledger.');clueLedger.entries.push(...gameClueRecords(game).map(x=>({...x,reservedAt:new Date().toISOString()})));saveLedgerSync();}
 function finalRecord(item){return {clue:item.clue,response:item.response,category:item.category,fingerprint:clueFingerprint(item.clue),factFingerprint:`${clueFingerprint(item.category)}|${clueFingerprint(item.response)}`};}
-function reserveFinal(item){const record=finalRecord(item);if(!record.fingerprint||gameHasDuplicate({rounds:[],final:item},clueLedger.entries))throw new Error('That Final Jeopardy clue overlaps the permanent clue ledger.');clueLedger.entries.push({...record,reservedAt:new Date().toISOString(),source:'final-test'});saveLedgerSync();}
-async function takeFreshFinal(){let lastError;for(let attempt=0;attempt<2;attempt++)try{const item=await generateFinalClue(allKnownRecords().map(x=>x.clue));if(!gameHasDuplicate({rounds:[],final:item},allKnownRecords())){reserveFinal(item);return item;}lastError=new Error('OpenAI repeated a prior clue.');}catch(error){lastError=error;}throw new Error(`${lastError?.message||'OpenAI could not prepare a clue.'} Please try the Final Jeopardy test again.`);}
+function reserveFinal(item){const record=finalRecord(item);if(!record.fingerprint||gameHasDuplicate({rounds:[],final:item},clueLedger.entries)||gameHasCategoryRepeat({rounds:[],final:item},clueLedger.entries.map(x=>x.category)))throw new Error('That Final Jeopardy clue or category overlaps the permanent ledger.');clueLedger.entries.push({...record,reservedAt:new Date().toISOString(),source:'final-test'});saveLedgerSync();}
+async function takeFreshFinal(){let lastError;for(let attempt=0;attempt<3;attempt++)try{const known=allKnownRecords(),item=await generateFinalClue(known.map(x=>x.clue),allKnownCategories());if(!gameHasDuplicate({rounds:[],final:item},known)&&!gameHasCategoryRepeat({rounds:[],final:item},allKnownCategories())){reserveFinal(item);return item;}lastError=new Error('OpenAI repeated a prior clue or category.');}catch(error){lastError=error;}throw new Error(`${lastError?.message||'OpenAI could not prepare a clue.'} Please try the Final Jeopardy test again.`);}
 function availableBuiltIn(){return [FALLBACK_GAME,EMERGENCY_GAME].find(game=>!gameHasDuplicate(game,clueLedger.entries));}
 function takeGame(){if(process.env.NODE_ENV==='test'&&!gameBank.length)return FALLBACK_GAME;if(gameBank.length){const game=gameBank[0];reserveGame(game);gameBank.shift();try{saveBankSync();}catch(error){console.error('The clue ledger was saved, but the game bank could not be updated:',error);gameBank=[];}return game;}const builtIn=availableBuiltIn();if(builtIn){reserveGame(builtIn);return builtIn;}if(process.env.OPENAI_API_KEY)throw new Error('The unique question bank is still being prepared. Please try again shortly.');throw new Error('No unused game is available. Configure OpenAI to generate another board.');}
-function sanitizeSavedBank(){const clean=[];for(const game of gameBank){const prior=[...clueLedger.entries,...clean.flatMap(gameClueRecords)];if(validateGame(game)&&!gameHasDuplicate(game,prior))clean.push(game);}if(clean.length!==gameBank.length){gameBank=clean;saveBankSync();}}
+function sanitizeSavedBank(){const clean=[];for(const game of gameBank){const prior=[...clueLedger.entries,...clean.flatMap(gameClueRecords)];if(validateGame(game)&&!gameHasDuplicate(game,prior)&&!gameHasCategoryRepeat(game,prior.map(x=>x.category)))clean.push(game);}if(clean.length!==gameBank.length){gameBank=clean;saveBankSync();}}
 const migratedFingerprints=new Set(clueLedger.entries.map(x=>x.fingerprint));for(const oldClue of history.usedClues||[]){const fingerprint=clueFingerprint(oldClue);if(fingerprint&&!migratedFingerprints.has(fingerprint)){migratedFingerprints.add(fingerprint);clueLedger.entries.push({clue:oldClue,response:'',category:'',fingerprint,factFingerprint:'',reservedAt:'history-migration'});}}
 if(!clueLedger.entries.length){clueLedger.entries.push(...gameClueRecords(FALLBACK_GAME).map(x=>({...x,reservedAt:'legacy-first-game-migration'})));}
 sanitizeSavedBank();saveLedgerSync();
-async function ensureGameBank(target=12){if(bankGenerating||!process.env.OPENAI_API_KEY||gameBank.length>=target)return;clearTimeout(bankRetryTimer);bankRetryTimer=null;bankGenerating=true;try{let rejected=0;while(gameBank.length<target){const known=allKnownRecords(),candidate=await generateGame(known.map(x=>x.clue));if(gameHasDuplicate(candidate,known)){if(++rejected>=8)throw new Error('Too many generated games repeated a stored clue.');continue;}rejected=0;gameBank.push(candidate);bankLastError=null;saveBankSync();for(const room of rooms.values())if(room.phase==='lobby'){room.generating=gameBank.length<target;room.bankReady=gameBank.length;room.message=`${gameBank.length} of ${target} games ready.`;emit(room);}}}catch(error){bankLastError=String(error.message||error).slice(0,1000);console.warn('Question bank generation paused:',bankLastError);bankRetryTimer=setTimeout(()=>ensureGameBank(target),60000);bankRetryTimer.unref();}finally{bankGenerating=false;}}
+async function ensureGameBank(target=GAME_BANK_TARGET){if(bankGenerating||!process.env.OPENAI_API_KEY||gameBank.length>=target)return;clearTimeout(bankRetryTimer);bankRetryTimer=null;bankGenerating=true;try{let rejected=0;while(gameBank.length<target){const known=allKnownRecords(),categories=allKnownCategories(),candidate=await generateGame(known.map(x=>x.clue),categories);if(gameHasDuplicate(candidate,known)||gameHasCategoryRepeat(candidate,categories)){if(++rejected>=8)throw new Error('Too many generated games repeated a stored clue or category.');continue;}rejected=0;gameBank.push(candidate);bankLastError=null;saveBankSync();for(const room of rooms.values())if(room.phase==='lobby'){room.generating=gameBank.length<target;room.bankReady=gameBank.length;room.message=`${gameBank.length} of ${target} games ready.`;emit(room);}}}catch(error){bankLastError=String(error.message||error).slice(0,1000);console.warn('Question bank generation paused:',bankLastError);bankRetryTimer=setTimeout(()=>ensureGameBank(target),60000);bankRetryTimer.unref();}finally{bankGenerating=false;}}
 function playerKey(name){return normalize(name);}
 function firstName(player){return String(player?.name||'Contestant').trim().split(/\s+/)[0]||'Contestant';}
 function validWagerAudio(audio){return typeof audio==='string'&&/^data:audio\/(webm|ogg|mp4|mpeg)(?:;codecs=[^;,]+)?;base64,[A-Za-z0-9+/=]+$/.test(audio)&&audio.length<1800000;}
@@ -56,7 +59,7 @@ function makeRoom({testMode=false,finalOnly=false,finalClue=null}={}){
   const era=Math.random()<.5?'trebek':'jennings';
   if(finalOnly&&!finalClue)throw new Error('A fresh Final Jeopardy clue is required.');
   const generated=!testMode&&!finalOnly&&gameBank.length>0,game=finalOnly?{...copy(FALLBACK_GAME),final:copy(finalClue)}:testMode?(Math.random()<.5?FALLBACK_GAME:EMERGENCY_GAME):takeGame();
-  const room={code:code(),era,logo:Math.floor(Math.random()*4),testMode:testMode||finalOnly,finalOnly,phase:'lobby',displayId:null,players:[],game:copy(game),generated,generating:!testMode&&!finalOnly&&!!process.env.OPENAI_API_KEY&&gameBank.length<12,bankReady:gameBank.length,round:0,used:[],selected:null,selectorId:null,canSelect:false,buzzedId:null,canBuzz:false,clueNeedsReading:false,attempted:[],wager:null,wagerAudio:null,lastJudgment:null,answerDeadline:null,advanceAt:null,canFinalWager:false,finalOrder:[],finalRevealIndex:0,finalRevealStep:null,championId:null,message:finalOnly?'Final Jeopardy Test: one fresh clue; results will not be saved.':testMode?'Test Game: old questions; results will not be saved.':'Waiting for contestants',createdAt:Date.now()};
+  const room={code:code(),era,logo:Math.floor(Math.random()*4),testMode:testMode||finalOnly,finalOnly,phase:'lobby',displayId:null,players:[],game:copy(game),generated,generating:!testMode&&!finalOnly&&!!process.env.OPENAI_API_KEY&&gameBank.length<GAME_BANK_TARGET,bankReady:gameBank.length,round:0,used:[],selected:null,selectorId:null,canSelect:false,buzzedId:null,canBuzz:false,clueNeedsReading:false,attempted:[],wager:null,wagerAudio:null,lastJudgment:null,answerDeadline:null,advanceAt:null,canFinalWager:false,finalOrder:[],finalRevealIndex:0,finalRevealStep:null,championId:null,message:finalOnly?'Final Jeopardy Test: one fresh clue; results will not be saved.':testMode?'Test Game: old questions; results will not be saved.':'Waiting for contestants',createdAt:Date.now()};
   rooms.set(room.code,room);
   ensureGameBank();
   return room;
@@ -88,7 +91,7 @@ function advanceRound(room){if(room.phase!=='round_break')return;if(room.round==
 
 app.get('/api/room/:code/qr',async(req,res)=>{const room=rooms.get(req.params.code.toUpperCase());if(!room)return res.sendStatus(404);res.type('png').send(await QRCode.toBuffer(`${req.protocol}://${req.get('host')}/join/${room.code}`,{width:500,margin:1}));});
 app.get('/api/history',(req,res)=>res.json({games:history.games.slice(-10).reverse(),champion:history.lastWinnerKey?history.players[history.lastWinnerKey]:null}));
-app.get('/api/game-bank',(_req,res)=>res.json({ready:gameBank.length,target:12,generating:bankGenerating,configured:!!process.env.OPENAI_API_KEY,playableNow:gameBank.length>0||!!availableBuiltIn(),reservedClues:clueLedger.entries.length,deduplication:'persistent-volume-ledger',lastError:bankLastError}));
+app.get('/api/game-bank',(_req,res)=>res.json({ready:gameBank.length,target:GAME_BANK_TARGET,generating:bankGenerating,configured:!!process.env.OPENAI_API_KEY,playableNow:gameBank.length>0||!!availableBuiltIn(),reservedClues:clueLedger.entries.length,deduplication:'persistent-volume-ledger',lastError:bankLastError}));
 app.post('/api/speak',async(req,res)=>{
   const text=String(req.body?.text||'').trim().slice(0,600),role=String(req.body?.role||'host');
   if(!text)return res.status(400).json({error:'Text is required.'});
@@ -149,4 +152,4 @@ async function finishGame(room){room.phase='final_results';const winner=[...room
 function dispose(room){clearRoomTimer(room);rooms.delete(room.code);}
 setInterval(()=>{for(const room of rooms.values())if(Date.now()-room.createdAt>8*60*60*1000)dispose(room);},30*60*1000).unref();
 if(require.main===module)server.listen(process.env.PORT||3000,()=>{console.log(`Jeopardy listening on ${process.env.PORT||3000}`);ensureGameBank();});
-module.exports={app,server,io,rooms,ANSWER_TIME_MS,DAILY_ANSWER_TIME_MS,makeRoom,publicRoom,introLine,firstName,validWagerAudio,values,dailyDouble,finishClue,finishGame,phraseCorrect,beginSelectedClue,advanceReview,expireAnswer,prepareFinalReveal,advanceFinalReveal,finalRecord,reserveFinal,dispose};
+module.exports={app,server,io,rooms,ANSWER_TIME_MS,DAILY_ANSWER_TIME_MS,GAME_BANK_TARGET,GAME_BANK_VERSION,makeRoom,publicRoom,introLine,firstName,validWagerAudio,values,dailyDouble,finishClue,finishGame,phraseCorrect,beginSelectedClue,advanceReview,expireAnswer,prepareFinalReveal,advanceFinalReveal,finalRecord,reserveFinal,dispose};

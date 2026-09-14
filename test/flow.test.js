@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 process.env.NODE_ENV='test';
 const {io:connect}=require('socket.io-client');
-const {server,io,rooms,ANSWER_TIME_MS,DAILY_ANSWER_TIME_MS,makeRoom,publicRoom,firstName,validWagerAudio,phraseCorrect,finishGame,prepareFinalReveal,advanceFinalReveal,advanceReview,dispose}=require('../server');
+const {server,io,rooms,ANSWER_TIME_MS,DAILY_ANSWER_TIME_MS,GAME_BANK_TARGET,GAME_BANK_VERSION,makeRoom,publicRoom,firstName,validWagerAudio,phraseCorrect,finishGame,prepareFinalReveal,advanceFinalReveal,advanceReview,dispose}=require('../server');
 let url;
 test.before(async()=>{await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));url=`http://127.0.0.1:${server.address().port}`;});
 test.after(async()=>{for(const room of rooms.values())dispose(room);await new Promise(resolve=>io.close(resolve));});
@@ -61,6 +61,7 @@ test('Final-only test skips directly to wagers with realistic scores',async t=>{
 
 test('responses must use Jeopardy question phrasing',()=>{
   assert.equal(ANSWER_TIME_MS,15000);assert.equal(DAILY_ANSWER_TIME_MS,15000);
+  assert.equal(GAME_BANK_TARGET,20);assert.equal(GAME_BANK_VERSION,2);
   assert.equal(phraseCorrect('What is Toronto?'),true);
   assert.equal(phraseCorrect('Who was Marie Curie?'),true);
   assert.equal(phraseCorrect('Toronto'),false);
@@ -69,6 +70,13 @@ test('responses must use Jeopardy question phrasing',()=>{
 test('Trebek introduction uses the corrected contestant and host cue points',()=>{
   const client=fs.readFileSync(require.resolve('../public/app.js'),'utf8');
   assert.match(client,/alex-introduction-web\.mp3',contestants:11\.7,host:36\.8,end:45\.3/);
+});
+
+test('the uploaded timeout buzzer is used for both no-buzz and timed-out reviews',()=>{
+  const client=fs.readFileSync(require.resolve('../public/app.js'),'utf8');
+  assert.match(client,/playDataAudio\('\/assets\/timeout-buzzer\.mp3'\)/);
+  assert.match(client,/else\{await playTimeoutBuzzer\(\);line='No one rang in\.'/);
+  assert.ok(fs.statSync(require.resolve('../public/assets/timeout-buzzer.mp3')).size>1000);
 });
 
 test('game narration uses first names and accepts mobile Daily Double audio formats',()=>{
