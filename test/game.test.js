@@ -1,6 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {FALLBACK_GAME,EMERGENCY_GAME,MAX_CLUE_CHARS,validateGame,locallyCorrect,normalize,responseText,gameClueRecords,gameHasDuplicate,beforeAfterValid,judge}=require('../src/game');
+const {FALLBACK_GAME,EMERGENCY_GAME,MAX_CLUE_CHARS,validateGame,locallyCorrect,normalize,responseText,gameClueRecords,gameHasDuplicate,beforeAfterValid,clueDoesNotRevealResponse,judge}=require('../src/game');
 
 test('fallback game is a complete two-round Jeopardy game',()=>{
   assert.equal(validateGame(FALLBACK_GAME),true);
@@ -45,6 +45,15 @@ test('Before & After requires two answers with one exact shared bridge',()=>{
 test('oversized clues are rejected instead of being squeezed onto the TV',()=>{
   const longRound=structuredClone(FALLBACK_GAME);longRound.rounds[0].categories[0].clues[0].clue='x'.repeat(MAX_CLUE_CHARS+1);assert.equal(validateGame(longRound),false);
   const longFinal=structuredClone(FALLBACK_GAME);longFinal.final.clue=Array.from({length:25},()=> 'short').join(' ');assert.equal(validateGame(longFinal),false);
+});
+
+test('clues cannot reveal their own response or a distinctive response root',()=>{
+  assert.equal(clueDoesNotRevealResponse({clue:'This compact object consists primarily of densely packed neutrons.',response:'neutron star'}),false);
+  assert.equal(clueDoesNotRevealResponse({clue:'This particle is produced in beta decay.',response:'neutrino',aliases:['neutrinos']}),true);
+  assert.equal(clueDoesNotRevealResponse({clue:'This Paris tower opened in 1889.',response:'Eiffel Tower'}),true);
+  assert.equal(clueDoesNotRevealResponse({clue:'This scientist developed the theory of relativity.',response:'Albert Einstein'}),true);
+  const invalid=structuredClone(FALLBACK_GAME);invalid.rounds[0].categories[0].clues[0]={clue:'This Toronto landmark dominates the skyline.',response:'Toronto',aliases:[]};
+  assert.equal(validateGame(invalid),false);
 });
 
 test('Responses API text extraction never passes undefined to JSON parsing',()=>{

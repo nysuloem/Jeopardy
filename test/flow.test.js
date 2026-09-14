@@ -1,5 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
+const fs=require('node:fs');
 process.env.NODE_ENV='test';
 const {io:connect}=require('socket.io-client');
 const {server,io,rooms,ANSWER_TIME_MS,DAILY_ANSWER_TIME_MS,makeRoom,publicRoom,firstName,validWagerAudio,phraseCorrect,finishGame,prepareFinalReveal,advanceFinalReveal,advanceReview,dispose}=require('../server');
@@ -63,6 +64,11 @@ test('responses must use Jeopardy question phrasing',()=>{
   assert.equal(phraseCorrect('What is Toronto?'),true);
   assert.equal(phraseCorrect('Who was Marie Curie?'),true);
   assert.equal(phraseCorrect('Toronto'),false);
+});
+
+test('Trebek introduction uses the corrected contestant and host cue points',()=>{
+  const client=fs.readFileSync(require.resolve('../public/app.js'),'utf8');
+  assert.match(client,/alex-introduction-web\.mp3',contestants:11\.7,host:36\.8,end:45\.3/);
 });
 
 test('game narration uses first names and accepts mobile Daily Double audio formats',()=>{
