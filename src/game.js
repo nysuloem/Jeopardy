@@ -248,7 +248,10 @@ async function generateGame(avoid=[],avoidCategories=[],onProgress=()=>{}){
   }catch(error){lastError=error;}
   if(!final)throw lastError||new Error('Final Jeopardy could not be generated.');
   rounds[0].dailyDoubles=[[Math.floor(Math.random()*6),1+Math.floor(Math.random()*4)]];const first=[Math.floor(Math.random()*6),1+Math.floor(Math.random()*4)];let second;do second=[Math.floor(Math.random()*6),1+Math.floor(Math.random()*4)];while(second[0]===first[0]&&second[1]===first[1]);rounds[1].dailyDoubles=[first,second];
-  const game={rounds,final};if(!validateGame(game)||gameHasDuplicate(game,avoid)||gameHasCategoryRepeat(game,avoidCategories))throw new Error('Incrementally generated game failed its final validation.');
+  let game={rounds,final},issues=generatedGameIssues(game,avoid,avoidCategories);
+  if(issues.length)game=await repairGeneratedGame(game,avoid,avoidCategories);
+  issues=generatedGameIssues(game,avoid,avoidCategories);const valid=validateGame(game),duplicate=gameHasDuplicate(game,avoid),repeatedCategory=gameHasCategoryRepeat(game,avoidCategories);
+  if(!valid||duplicate||repeatedCategory||issues.length)throw new Error(`Final assembly check failed: ${JSON.stringify({valid,duplicate,repeatedCategory,issues:issues.slice(0,8)})}`);
   onProgress(13,13);return game;
 }
 
