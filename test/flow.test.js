@@ -4,6 +4,7 @@ const fs=require('node:fs');
 process.env.NODE_ENV='test';
 const {io:connect}=require('socket.io-client');
 const {server,io,rooms,ANSWER_TIME_MS,DAILY_ANSWER_TIME_MS,GAME_BANK_TARGET,GAME_BANK_VERSION,makeRoom,publicRoom,firstName,validWagerAudio,phraseCorrect,finishGame,prepareFinalReveal,advanceFinalReveal,advanceReview,dispose}=require('../server');
+const {BOARD_GENERATION_TIMEOUT_MS}=require('../src/game');
 let url;
 test.before(async()=>{await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));url=`http://127.0.0.1:${server.address().port}`;});
 test.after(async()=>{for(const room of rooms.values())dispose(room);await new Promise(resolve=>io.close(resolve));});
@@ -65,6 +66,24 @@ test('responses must use Jeopardy question phrasing',()=>{
   assert.equal(phraseCorrect('What is Toronto?'),true);
   assert.equal(phraseCorrect('Who was Marie Curie?'),true);
   assert.equal(phraseCorrect('Toronto'),false);
+});
+
+test('game-bank status exposes live ready and target counts',async()=>{
+  const response=await fetch(`${url}/api/game-bank`),bank=await response.json();
+  assert.equal(response.ok,true);
+  assert.equal(typeof bank.ready,'number');
+  assert.equal(bank.target,GAME_BANK_TARGET);
+  assert.equal(typeof bank.generating,'boolean');
+  assert.equal(typeof bank.playableNow,'boolean');
+  assert.equal(BOARD_GENERATION_TIMEOUT_MS,600000);
+});
+
+test('landing screen shows and refreshes game-board availability',()=>{
+  const client=fs.readFileSync(require.resolve('../public/app.js'),'utf8');
+  assert.match(client,/id="bankStatus">Checking available game boards/);
+  assert.match(client,/fetch\('\/api\/game-bank',\{cache:'no-store'\}\)/);
+  assert.match(client,/setInterval\(refreshBankStatus,10000\)/);
+  assert.match(client,/host\.disabled=!bank\.playableNow/);
 });
 
 test('Trebek introduction uses the corrected contestant and host cue points',()=>{
