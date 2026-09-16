@@ -142,7 +142,7 @@ const GENERIC_RESPONSE_WORDS=new Set(['answer','author','blood','book','capital'
 function answerWordRoot(value){
   let word=String(value||'').toLowerCase();
   if(word.length>5&&word.endsWith('ies'))word=`${word.slice(0,-3)}y`;
-  else if(word.length>5&&word.endsWith('es'))word=word.slice(0,-2);
+  else if(word.length>=5&&/(?:ches|shes|sses|xes|zes)$/.test(word))word=word.slice(0,-2);
   else if(word.length>4&&word.endsWith('s'))word=word.slice(0,-1);
   return word;
 }

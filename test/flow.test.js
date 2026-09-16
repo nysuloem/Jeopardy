@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 process.env.NODE_ENV='test';
 const {io:connect}=require('socket.io-client');
-const {server,io,rooms,ANSWER_TIME_MS,DAILY_ANSWER_TIME_MS,GAME_BANK_TARGET,GAME_BANK_VERSION,JUDGING_DIAGNOSTICS,makeRoom,publicRoom,firstName,validWagerAudio,phraseCorrect,finishGame,prepareFinalReveal,advanceFinalReveal,advanceReview,dispose}=require('../server');
+const {server,io,rooms,ANSWER_TIME_MS,DAILY_ANSWER_TIME_MS,CLUE_READ_FAILSAFE_MS,GAME_BANK_TARGET,GAME_BANK_VERSION,JUDGING_DIAGNOSTICS,makeRoom,publicRoom,firstName,validWagerAudio,phraseCorrect,finishClue,finishGame,prepareFinalReveal,advanceFinalReveal,advanceReview,dispose}=require('../server');
 const {BOARD_GENERATION_TIMEOUT_MS}=require('../src/game');
 let url;
 test.before(async()=>{await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));url=`http://127.0.0.1:${server.address().port}`;});
@@ -38,6 +38,20 @@ test('correct response is exposed only after a clue ends without a correct answe
 test('an incorrect response reopens buzzing without asking the display to reread the clue',()=>{
   const room=makeRoom();room.round=0;room.selected={category:0,row:0};room.phase='review';room.players=[{id:'wrong',name:'Wrong',score:0},{id:'next',name:'Next',score:0}];room.lastJudgment={playerId:'wrong',correct:false,revealCorrect:false,timedOut:false};
   advanceReview(room);assert.equal(room.phase,'clue');assert.equal(room.canBuzz,true);assert.equal(room.clueNeedsReading,false);dispose(room);
+});
+
+test('a missed narration completion signal cannot leave phones on WAIT forever',async()=>{
+  const room=makeRoom();room.round=0;room.selected={category:0,row:0};room.phase='selection';room.players=[{id:'p',name:'Player',score:0}];
+  room.used=[{round:0,category:0,row:0}];require('../server').beginSelectedClue(room);assert.equal(room.clueNeedsReading,true);
+  await pause(CLUE_READ_FAILSAFE_MS+30);assert.equal(room.canBuzz,true);assert.equal(room.clueNeedsReading,false);dispose(room);
+});
+
+test('the last remaining board clue is selected automatically after the host announcement',async t=>{
+  const room=makeRoom(),host=await client();t.after(()=>{host.disconnect();dispose(room);});await host.emitWithAck('watchRoom',{code:room.code});
+  room.round=0;room.phase='review';room.selectorId='p';room.players=[{id:'p',name:'Player',score:0}];room.used=[];
+  for(let category=0;category<6;category++)for(let row=0;row<5;row++)if(category!==5||row!==4)room.used.push({round:0,category,row});
+  finishClue(room);assert.equal(room.phase,'selection');assert.equal(room.automaticFinalClue,true);assert.deepEqual(room.selected,{category:5,row:4});
+  host.emit('finalBoardCluePromptRead',{code:room.code});await pause(10);assert.equal(room.phase,'clue');assert.equal(room.clueNeedsReading,true);
 });
 
 test('test games reuse old boards without changing champion history',async()=>{
@@ -89,12 +103,18 @@ test('landing screen shows and refreshes game-board availability',()=>{
   assert.match(client,/host\.disabled=!bank\.playableNow/);
   assert.match(client,/id="testJudging">Run Judging Check/);
   assert.match(client,/fetch\('\/api\/judging-diagnostics'/);
-  assert.equal(JUDGING_DIAGNOSTICS.length,8);
+  assert.equal(JUDGING_DIAGNOSTICS.length,10);
 });
 
 test('Trebek introduction uses the corrected contestant and host cue points',()=>{
   const client=fs.readFileSync(require.resolve('../public/app.js'),'utf8');
   assert.match(client,/alex-introduction-web\.mp3',contestants:11\.7,host:36\.8,end:45\.3/);
+});
+
+test('TV presentation includes returning champion chyron, clue category, and final-clue announcement',()=>{
+  const client=fs.readFileSync(require.resolve('../public/app.js'),'utf8'),styles=fs.readFileSync(require.resolve('../public/styles.css'),'utf8');
+  assert.match(client,/champion-chyron/);assert.match(client,/championStats\.streak/);assert.match(client,/championStats\.earnings/);
+  assert.match(client,/class="clue-category"/);assert.match(client,/And now, the final clue\./);assert.match(styles,/\.clue-category/);
 });
 
 test('the uploaded timeout buzzer is used for both no-buzz and timed-out reviews',()=>{

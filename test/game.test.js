@@ -99,3 +99,9 @@ test('AI judging accepts a harmless omitted qualifier but rejects a descriptive 
   assert.equal(calls.length,2);
   assert.match(calls[0].instructions,/Rhinoceros is NOT narwhal/);assert.match(calls[0].instructions,/Pyrimid of Giza/);
 });
+
+test('judging deterministically accepts singular and plural equivalents',async()=>{
+  assert.equal(await judge('What is a planet?',{clue:'This body orbits a star.',response:'planets',aliases:[]}),true);
+  assert.equal(await judge('What are cities?',{clue:'Toronto is one of these.',response:'city',aliases:[]}),true);
+  assert.equal(await judge('What are boxes?',{clue:'These containers have six faces.',response:'box',aliases:[]}),true);
+});
