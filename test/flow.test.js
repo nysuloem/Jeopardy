@@ -29,6 +29,16 @@ test('host, signed contestant, clue, buzz and scoring flow work together',async 
   assert.equal(publicRoom(room).game.rounds[0].categories[0].clues[0].response,null);
 });
 
+test('a contestant can disconnect and rejoin repeatedly with one stable token',async t=>{
+  const room=makeRoom(),first=await client();t.after(()=>{first.disconnect();dispose(room);});
+  const joined=await first.emitWithAck('joinRoom',{code:room.code,name:'Reconnect Test',occupation:'teacher',location:'London',signature:'data:image/png;base64,AAAA',photo:'data:image/jpeg;base64,AAAA'});
+  assert.equal(joined.ok,true);assert.ok(joined.reconnectToken);room.selectorId=first.id;first.disconnect();await pause(10);
+  const second=await client();t.after(()=>second.disconnect());const again=await second.emitWithAck('rejoin',{code:room.code,reconnectToken:joined.reconnectToken,playerId:joined.playerId});
+  assert.equal(again.ok,true);assert.equal(again.reconnectToken,joined.reconnectToken);assert.equal(room.selectorId,second.id);assert.equal(room.players[0].score,0);second.disconnect();await pause(10);
+  const third=await client();t.after(()=>third.disconnect());const twice=await third.emitWithAck('rejoin',{code:room.code,reconnectToken:joined.reconnectToken,playerId:joined.playerId});
+  assert.equal(twice.ok,true);assert.equal(room.players[0].id,third.id);assert.equal(publicRoom(room).players[0].reconnectToken,undefined);
+});
+
 test('correct response is exposed only after a clue ends without a correct answer',()=>{
   const room=makeRoom();room.round=0;room.selected={category:0,row:0};room.phase='review';room.lastJudgment={playerId:null,correct:false,revealCorrect:true,timedOut:false};
   assert.equal(publicRoom(room).game.rounds[0].categories[0].clues[0].response,'Toronto');room.lastJudgment.revealCorrect=false;
@@ -114,7 +124,14 @@ test('Trebek introduction uses the corrected contestant and host cue points',()=
 test('TV presentation includes returning champion chyron, clue category, and final-clue announcement',()=>{
   const client=fs.readFileSync(require.resolve('../public/app.js'),'utf8'),styles=fs.readFileSync(require.resolve('../public/styles.css'),'utf8');
   assert.match(client,/champion-chyron/);assert.match(client,/championStats\.streak/);assert.match(client,/championStats\.earnings/);
+  assert.match(client,/intro-player-frame/);assert.match(client,/intro-player-photo/);assert.match(client,/intro-signature/);
   assert.match(client,/class="clue-category"/);assert.match(client,/And now, the final clue\./);assert.match(styles,/\.clue-category/);
+});
+
+test('client keeps its reconnect token current after joining and rejoining',()=>{
+  const client=fs.readFileSync(require.resolve('../public/app.js'),'utf8');
+  assert.match(client,/let saved=/);assert.match(client,/function saveSession\(playerId,reconnectToken\)/);
+  assert.match(client,/reconnectToken:saved\?\.reconnectToken/);assert.match(client,/saveSession\(r\.playerId,r\.reconnectToken\)/);
 });
 
 test('the uploaded timeout buzzer is used for both no-buzz and timed-out reviews',()=>{
