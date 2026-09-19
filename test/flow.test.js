@@ -29,6 +29,19 @@ test('host, signed contestant, clue, buzz and scoring flow work together',async 
   assert.equal(publicRoom(room).game.rounds[0].categories[0].clues[0].response,null);
 });
 
+test('remote play advances automatically from one contestant device and fails over on disconnect',async t=>{
+  const creator=await client(),created=await creator.emitWithAck('createRoom',{remoteMode:true}),room=rooms.get(created.code);t.after(()=>{creator.disconnect();dispose(room);});
+  assert.equal(created.ok,true);assert.equal(room.remoteMode,true);assert.equal(room.displayId,null);
+  const first=await creator.emitWithAck('joinRoom',{code:room.code,name:'Remote One',occupation:'teacher',location:'London',signature:'data:image/png;base64,AAAA',photo:'data:image/jpeg;base64,AAAA'});
+  assert.equal(first.ok,true);assert.equal(room.remoteControllerId,creator.id);
+  const second=await client();t.after(()=>second.disconnect());const joined=await second.emitWithAck('joinRoom',{code:room.code,name:'Remote Two',occupation:'researcher',location:'Ottawa',signature:'data:image/png;base64,BBBB',photo:'data:image/jpeg;base64,BBBB'});
+  assert.equal(joined.ok,true);assert.equal((await creator.emitWithAck('startGame',{code:room.code})).ok,true);assert.equal(room.phase,'intro');
+  second.emit('introFinished',{code:room.code});await pause(10);assert.equal(room.phase,'intro');
+  creator.emit('introFinished',{code:room.code});await pause(10);assert.equal(room.phase,'categories');
+  creator.disconnect();await pause(10);assert.equal(room.remoteControllerId,second.id);
+  second.emit('categoriesRead',{code:room.code});await pause(10);assert.equal(room.phase,'board');
+});
+
 test('a contestant can disconnect and rejoin repeatedly with one stable token',async t=>{
   const room=makeRoom(),first=await client();t.after(()=>{first.disconnect();dispose(room);});
   const joined=await first.emitWithAck('joinRoom',{code:room.code,name:'Reconnect Test',occupation:'teacher',location:'London',signature:'data:image/png;base64,AAAA',photo:'data:image/jpeg;base64,AAAA'});
@@ -111,6 +124,9 @@ test('landing screen shows and refreshes game-board availability',()=>{
   assert.match(client,/setInterval\(refreshBankStatus,10000\)/);
   assert.match(client,/building part \$\{bank\.buildCompleted\+1\} of \$\{bank\.buildTotal\}/);
   assert.match(client,/host\.disabled=!bank\.playableNow/);
+  assert.match(client,/id="remote">Remote Play/);
+  assert.match(client,/remote\.disabled=!bank\.playableNow/);
+  assert.match(client,/remoteMode/);
   assert.match(client,/id="testJudging">Run Judging Check/);
   assert.match(client,/fetch\('\/api\/judging-diagnostics'/);
   assert.equal(JUDGING_DIAGNOSTICS.length,10);
