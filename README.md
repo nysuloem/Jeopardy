@@ -5,9 +5,9 @@ A Jeopardy game with randomly selected Alex Trebek and Ken Jennings eras. It sup
 ## Features
 
 - Up to three contestants with finger-drawn podium signatures and uploaded podium photos
-- Dynamic contestant introductions using occupation, location, and returning-champion records
+- Dynamic contestant introductions using occupation, location, and returning-champion records; the champion is introduced last and their record appears with the streak announcement
 - Jeopardy, Double Jeopardy, Daily Doubles, and Final Jeopardy
-- Server-authoritative buzz lockout, scoring, private wagers, and automatic host rulings
+- Server-authoritative buzz lockout, scoring, private wagers, and automatic host rulings, including one timed “Can you be more specific?” clarification
 - OpenAI-generated boards, semantic response judging, and synchronized AI host narration, with a complete offline fallback game
 - Presentation-only 16:9 TV display; clue selection, buzzing, wagers, and responses are controlled from contestant phones
 - One-device Remote Play with the synchronized board, clues, scores, narration, music, sound effects, and personal controls on every contestant’s device
@@ -15,8 +15,9 @@ A Jeopardy game with randomly selected Alex Trebek and Ken Jennings eras. It sup
 - Spoken category introductions, player-by-player selection prompts, 15-second microphone responses that contestants explicitly submit, and automatic round progression
 - Spoken Daily Double wagers, including "True Daily Double," plus a broadcast-style animated reveal
 - Typed-only, draft-safe Final Jeopardy responses with the full 30-second music cue and low-to-high staged reveal
-- A consumable, background-generated bank of 12 complete games
-- An uncapped permanent clue ledger on the Railway volume; assigned clues are reserved before play and exact clues or repeated category/response facts are rejected from every refill
+- A consumable, background-generated bank of 20 complete games
+- Saved game banks are migrated in place: compliant boards remain playable, while only affected categories or clues are queued for targeted repair
+- An uncapped permanent clue ledger on the Railway volume; assigned clues are reserved before play, while repeated responses, overlapping category themes, exact clues, and repeated category/response facts are rejected from every refill
 - Durable champion, game, and clue history on a Railway volume
 
 ## Railway
@@ -30,7 +31,7 @@ Mount a persistent volume at `/data`, then configure:
 
 Railway runs `npm start` and serves both the game and Socket.IO server from `PORT`.
 
-After deployment, visit `/api/game-bank` to see the 12-game bank fill in and the number of permanently reserved clues. Generation runs in the background, one full game at a time. Each assigned game is removed from the queue and replaced with a newly generated game. Keep the `/data` volume mounted so the bank, clue ledger, and champion history survive redeployments.
+After deployment, visit `/api/game-bank` to see the 20-game bank fill in and the number of permanently reserved clues. Generation runs in the background, one full game at a time. Each assigned game is removed from the queue and replaced with a newly generated game. Keep the `/data` volume mounted so the bank, clue ledger, and champion history survive redeployments.
 
 ## Local development
 

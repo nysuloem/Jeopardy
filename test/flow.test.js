@@ -3,8 +3,8 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 process.env.NODE_ENV='test';
 const {io:connect}=require('socket.io-client');
-const {server,io,rooms,ANSWER_TIME_MS,DAILY_ANSWER_TIME_MS,CLUE_READ_FAILSAFE_MS,GAME_BANK_TARGET,GAME_BANK_VERSION,JUDGING_DIAGNOSTICS,makeRoom,publicRoom,firstName,validWagerAudio,phraseCorrect,finishClue,finishGame,prepareFinalReveal,advanceFinalReveal,advanceReview,dispose}=require('../server');
-const {BOARD_GENERATION_TIMEOUT_MS}=require('../src/game');
+const {server,io,rooms,ANSWER_TIME_MS,DAILY_ANSWER_TIME_MS,CLARIFICATION_TIME_MS,CLUE_READ_FAILSAFE_MS,GAME_BANK_TARGET,GAME_BANK_VERSION,JUDGING_DIAGNOSTICS,classifySavedBank,makeRoom,publicRoom,orderPlayersForIntro,firstName,validWagerAudio,phraseCorrect,finishClue,finishGame,prepareFinalReveal,advanceFinalReveal,advanceReview,dispose}=require('../server');
+const {BOARD_GENERATION_TIMEOUT_MS,FALLBACK_GAME}=require('../src/game');
 let url;
 test.before(async()=>{await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));url=`http://127.0.0.1:${server.address().port}`;});
 test.after(async()=>{for(const room of rooms.values())dispose(room);await new Promise(resolve=>io.close(resolve));});
@@ -27,6 +27,14 @@ test('host, signed contestant, clue, buzz and scoring flow work together',async 
   const answer=await player.emitWithAck('submitAnswer',{code:room.code,answer:'What is Toronto?'});
   assert.equal(answer.ok,true);assert.equal(room.players[0].score,200);assert.equal(room.phase,'review');
   assert.equal(publicRoom(room).game.rounds[0].categories[0].clues[0].response,null);
+});
+
+test('an underspecified response gets one eight-second clarification without changing the score',async t=>{
+  const originalKey=process.env.OPENAI_API_KEY;delete process.env.OPENAI_API_KEY;const room=makeRoom({testMode:true}),player=await client();t.after(()=>{if(originalKey===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=originalKey;player.disconnect();dispose(room);});
+  const joined=await player.emitWithAck('joinRoom',{code:room.code,name:'Specific Tester',occupation:'teacher',location:'Ottawa',signature:'data:image/png;base64,AAAA',photo:'data:image/jpeg;base64,AAAA'});assert.equal(joined.ok,true);
+  room.round=0;room.selected={category:0,row:0};room.game.rounds[0].categories[0].clues[0]={clue:'The largest living land animal belongs to this species.',response:'African elephant',aliases:[]};room.phase='answer';room.buzzedId=player.id;room.answerDeadline=Date.now()+ANSWER_TIME_MS;
+  const first=await player.emitWithAck('submitAnswer',{code:room.code,answer:'What is an elephant?'});assert.equal(first.needsMoreSpecific,true);assert.equal(room.phase,'answer');assert.equal(room.clarificationPrompt,true);assert.equal(room.players[0].score,0);assert.ok(room.answerDeadline-Date.now()<=CLARIFICATION_TIME_MS&&room.answerDeadline-Date.now()>CLARIFICATION_TIME_MS-1000);
+  const second=await player.emitWithAck('submitAnswer',{code:room.code,answer:'What is an African elephant?'});assert.equal(second.ok,true);assert.equal(room.phase,'review');assert.equal(room.clarificationPrompt,false);assert.equal(room.players[0].score,200);
 });
 
 test('remote play advances automatically from one contestant device and fails over on disconnect',async t=>{
@@ -98,8 +106,8 @@ test('Final-only test skips directly to wagers with realistic scores',async t=>{
 });
 
 test('responses must use Jeopardy question phrasing',()=>{
-  assert.equal(ANSWER_TIME_MS,15000);assert.equal(DAILY_ANSWER_TIME_MS,15000);
-  assert.equal(GAME_BANK_TARGET,20);assert.equal(GAME_BANK_VERSION,2);
+  assert.equal(ANSWER_TIME_MS,15000);assert.equal(DAILY_ANSWER_TIME_MS,15000);assert.equal(CLARIFICATION_TIME_MS,8000);
+  assert.equal(GAME_BANK_TARGET,20);assert.equal(GAME_BANK_VERSION,3);
   assert.equal(phraseCorrect('What is Toronto?'),true);
   assert.equal(phraseCorrect('Who was Marie Curie?'),true);
   assert.equal(phraseCorrect('Toronto'),false);
@@ -111,10 +119,19 @@ test('game-bank status exposes live ready and target counts',async()=>{
   assert.equal(typeof bank.ready,'number');
   assert.equal(bank.target,GAME_BANK_TARGET);
   assert.equal(typeof bank.generating,'boolean');
+  assert.equal(typeof bank.repairing,'boolean');
+  assert.equal(typeof bank.repairQueued,'number');
   assert.equal(typeof bank.buildCompleted,'number');
   assert.equal(bank.buildTotal,13);
   assert.equal(typeof bank.playableNow,'boolean');
   assert.equal(BOARD_GENERATION_TIMEOUT_MS,600000);
+});
+
+test('saved banks keep valid boards and queue only affected boards for targeted repair',()=>{
+  const affected=structuredClone(FALLBACK_GAME);affected.rounds[0].categories[0].name='OCEAN GIANTS';affected.rounds[1].categories[0].name='ANIMAL GIANTS';
+  const migrated=classifySavedBank([FALLBACK_GAME,affected],[]);
+  assert.equal(migrated.ready.length,1);assert.equal(migrated.ready[0],FALLBACK_GAME);
+  assert.equal(migrated.repairQueue.length,1);assert.equal(migrated.repairQueue[0],affected);
 });
 
 test('landing screen shows and refreshes game-board availability',()=>{
@@ -123,13 +140,19 @@ test('landing screen shows and refreshes game-board availability',()=>{
   assert.match(client,/fetch\('\/api\/game-bank',\{cache:'no-store'\}\)/);
   assert.match(client,/setInterval\(refreshBankStatus,10000\)/);
   assert.match(client,/building part \$\{bank\.buildCompleted\+1\} of \$\{bank\.buildTotal\}/);
+  assert.match(client,/repairing \$\{bank\.repairQueued\} saved board/);
   assert.match(client,/host\.disabled=!bank\.playableNow/);
   assert.match(client,/id="remote">Remote Play/);
   assert.match(client,/remote\.disabled=!bank\.playableNow/);
   assert.match(client,/remoteMode/);
   assert.match(client,/id="testJudging">Run Judging Check/);
   assert.match(client,/fetch\('\/api\/judging-diagnostics'/);
-  assert.equal(JUDGING_DIAGNOSTICS.length,10);
+  assert.equal(JUDGING_DIAGNOSTICS.length,12);
+});
+
+test('the returning champion is ordered last for introductions',()=>{
+  const players=[{id:'champ',key:'returning'},{id:'first',key:'first'},{id:'second',key:'second'}];
+  assert.deepEqual(orderPlayersForIntro(players,'returning').map(player=>player.id),['first','second','champ']);
 });
 
 test('Trebek introduction uses the corrected contestant and host cue points',()=>{
@@ -140,8 +163,14 @@ test('Trebek introduction uses the corrected contestant and host cue points',()=
 test('TV presentation includes returning champion chyron, clue category, and final-clue announcement',()=>{
   const client=fs.readFileSync(require.resolve('../public/app.js'),'utf8'),styles=fs.readFileSync(require.resolve('../public/styles.css'),'utf8');
   assert.match(client,/champion-chyron/);assert.match(client,/championStats\.streak/);assert.match(client,/championStats\.earnings/);
+  assert.match(client,/introOrder/);assert.match(client,/insertAdjacentHTML\('beforeend'/);assert.match(client,/await speak\(introSentence\(p\),'announcer'\);if\(p\.championStats\)/);
   assert.match(client,/intro-player-frame/);assert.match(client,/intro-player-photo/);assert.match(client,/intro-signature/);
   assert.match(client,/class="clue-category"/);assert.match(client,/And now, the final clue\./);assert.match(styles,/\.clue-category/);
+});
+
+test('the client narrates and displays the clarification window',()=>{
+  const client=fs.readFileSync(require.resolve('../public/app.js'),'utf8');
+  assert.match(client,/CLARIFICATION_TIME_MS=8000/);assert.match(client,/Can you be more specific\?/);assert.match(client,/Be more specific/);assert.match(client,/id="countdown">8\.0/);
 });
 
 test('client keeps its reconnect token current after joining and rejoining',()=>{

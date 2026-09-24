@@ -1,6 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {FALLBACK_GAME,EMERGENCY_GAME,MAX_CLUE_CHARS,validateGame,locallyCorrect,plausibleVariant,normalize,responseText,gameClueRecords,gameCategories,gameHasCategoryRepeat,gameHasDuplicate,beforeAfterValid,clueDoesNotRevealResponse,generatedGameIssues,generateGame,judge}=require('../src/game');
+const {FALLBACK_GAME,EMERGENCY_GAME,MAX_CLUE_CHARS,validateGame,locallyCorrect,plausibleVariant,locallyNeedsMoreSpecific,normalize,responseText,gameClueRecords,gameCategories,gameHasCategoryRepeat,gameHasCategoryOverlap,gameHasResponseRepeat,gameHasDuplicate,beforeAfterValid,clueDoesNotRevealResponse,generatedGameIssues,generateGame,judgeResponse,judge}=require('../src/game');
 
 test('fallback game is a complete two-round Jeopardy game',()=>{
   assert.equal(validateGame(FALLBACK_GAME),true);
@@ -19,6 +19,8 @@ test('response matching accepts Jeopardy phrasing and rejects unrelated response
   assert.equal(locallyCorrect('What is a rhinoceros?',{response:'narwhal',aliases:[]}),false);
   assert.equal(plausibleVariant('What is a rhinoceros?',{response:'narwhal',aliases:[]}),false);
   assert.equal(normalize('Who is The Banting?'),'banting');
+  assert.equal(locallyCorrect('What is Octoberfest?',{response:'Oktoberfest',aliases:[]}),true);
+  assert.equal(locallyNeedsMoreSpecific('What is an elephant?',{response:'African elephant',aliases:[]}),true);
 });
 
 test('duplicate protection catches repeated clues and repeated facts',()=>{
@@ -34,6 +36,13 @@ test('category protection rejects repeated titles within and across generated ga
   assert.equal(gameHasCategoryRepeat(FALLBACK_GAME,['CANADIAN PLACES']),true);
   const repeated=structuredClone(FALLBACK_GAME);repeated.rounds[1].categories[0].name=repeated.rounds[0].categories[0].name;
   assert.equal(validateGame(repeated),false);
+});
+
+test('category and response protection reject overlap anywhere on one board',()=>{
+  const overlapping=structuredClone(FALLBACK_GAME);overlapping.rounds[0].categories[0].name='OCEAN GIANTS';overlapping.rounds[1].categories[0].name='ANIMAL GIANTS';
+  assert.equal(gameHasCategoryOverlap(overlapping),true);assert.equal(validateGame(overlapping),false);
+  const repeatedResponse=structuredClone(FALLBACK_GAME);repeatedResponse.rounds[1].categories[0].clues[0].response=repeatedResponse.rounds[0].categories[0].clues[0].response;
+  assert.equal(gameHasResponseRepeat(repeatedResponse),true);assert.equal(validateGame(repeatedResponse),false);
 });
 
 test('validation identifies individual bad clues without condemning valid board slots',()=>{
@@ -104,4 +113,12 @@ test('judging deterministically accepts singular and plural equivalents',async()
   assert.equal(await judge('What is a planet?',{clue:'This body orbits a star.',response:'planets',aliases:[]}),true);
   assert.equal(await judge('What are cities?',{clue:'Toronto is one of these.',response:'city',aliases:[]}),true);
   assert.equal(await judge('What are boxes?',{clue:'These containers have six faces.',response:'box',aliases:[]}),true);
+});
+
+test('an underspecified response receives one clarification decision',async t=>{
+  const originalKey=process.env.OPENAI_API_KEY;delete process.env.OPENAI_API_KEY;t.after(()=>{if(originalKey===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=originalKey;});
+  const item={clue:'The largest living land animal belongs to this species.',response:'African elephant',aliases:[]};
+  assert.deepEqual(await judgeResponse('What is an elephant?',item),{decision:'prompt',verdict:'needs_more_specific'});
+  assert.equal((await judgeResponse('What is an elephant?',item,{allowPrompt:false})).decision,'incorrect');
+  assert.equal((await judgeResponse('What is an African elephant?',item)).decision,'correct');
 });

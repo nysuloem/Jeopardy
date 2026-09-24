@@ -92,6 +92,21 @@ function gameHasCategoryRepeat(game,priorCategories=[]){
   for(const category of gameCategories(game)){const key=clueFingerprint(category);if(!key||seen.has(key))return true;seen.add(key);}
   return false;
 }
+const GENERIC_CATEGORY_WORDS=new Set(['about','after','around','before','category','from','great','hodgepodge','miscellany','potpourri','stuff','things','with','word','world']);
+function categoryTopicTokens(value){return [...new Set(clueFingerprint(value).split(' ').map(answerWordRoot).filter(word=>word.length>=4&&!GENERIC_CATEGORY_WORDS.has(word)))];}
+function categoriesOverlap(left,right){
+  const a=categoryTopicTokens(left),b=categoryTopicTokens(right);if(!a.length||!b.length)return false;
+  const shared=a.filter(word=>b.includes(word));
+  return shared.length>=2||shared.length===1&&(a.length===1||b.length===1||shared.length/Math.min(a.length,b.length)>=.5);
+}
+function gameHasCategoryOverlap(game){
+  const categories=(game?.rounds||[]).flatMap(round=>(round.categories||[]).map(category=>category.name));
+  for(let i=0;i<categories.length;i++)for(let j=i+1;j<categories.length;j++)if(categoriesOverlap(categories[i],categories[j]))return true;
+  return false;
+}
+function gameHasResponseRepeat(game){
+  const seen=new Set();for(const record of gameClueRecords(game)){const key=clueFingerprint(record.response);if(!key||seen.has(key))return true;seen.add(key);}return false;
+}
 function gameHasDuplicate(game,priorRecords=[]){
   const clues=new Set(priorRecords.map(x=>typeof x==='string'?clueFingerprint(x):x.fingerprint||clueFingerprint(x.clue)));
   const facts=new Set(priorRecords.map(x=>typeof x==='string'?'':x.factFingerprint||`${clueFingerprint(x.category)}|${clueFingerprint(x.response)}`).filter(x=>x&&x!=='|'));
@@ -106,7 +121,7 @@ function editDistance(a,b){
   for(let i=1;i<=a.length;i++){let previous=row[0];row[0]=i;for(let j=1;j<=b.length;j++){const held=row[j];row[j]=Math.min(row[j]+1,row[j-1]+1,previous+(a[i-1]===b[j-1]?0:1));previous=held;}}
   return row[b.length];
 }
-function tokenEquivalent(a,b){const left=responseRoot(a),right=responseRoot(b);return left===right||(left.length>=5&&right.length>=5&&editDistance(left,right)<=1);}
+function tokenEquivalent(a,b){const left=responseRoot(a),right=responseRoot(b),distance=editDistance(left,right),limit=Math.min(left.length,right.length)>=9?2:1;return left===right||(left.length>=5&&right.length>=5&&distance<=limit);}
 function closeResponse(given,target){
   const answer=responseTokens(given),expected=responseTokens(target);if(!answer.length||!expected.length)return false;
   return answer.length===expected.length&&answer.every((word,index)=>tokenEquivalent(word,expected[index]));
@@ -117,6 +132,10 @@ function locallyCorrect(given,item){
 function plausibleVariant(given,item){
   const answer=responseTokens(given);if(!answer.length)return false;
   return [item.response,...(item.aliases||[])].some(target=>{const expected=responseTokens(target);return answer.some(word=>expected.some(targetWord=>tokenEquivalent(word,targetWord)));});
+}
+function locallyNeedsMoreSpecific(given,item){
+  const answer=responseTokens(given);if(!answer.length)return false;
+  return [item.response,...(item.aliases||[])].some(target=>{const expected=responseTokens(target);return answer.length<expected.length&&answer.every(word=>expected.some(targetWord=>tokenEquivalent(word,targetWord)));});
 }
 function categoryRuleValid(category){
   const name=String(category?.name||''),match=name.match(/\b(?:starts?|begins?)\s+with\s+(?:the\s+letter\s+)?["'“”]?([a-z0-9])\b/i);
@@ -157,25 +176,28 @@ function clueDoesNotRevealResponse(item){
   });
 }
 function validateGame(game){
-  return !!(game?.rounds?.length===2&&game.rounds.every((r,ri)=>r.categories?.length===6&&r.categories.every(c=>c.name&&c.clues?.length===5&&c.clues.every(q=>clueLengthValid(q.clue)&&q.response&&clueDoesNotRevealResponse(q))&&categoryRuleValid(c))&&r.dailyDoubles?.length===(ri?2:1))&&game.final?.category&&clueLengthValid(game.final?.clue)&&game.final?.response&&clueDoesNotRevealResponse(game.final)&&!gameHasCategoryRepeat(game));
+  return !!(game?.rounds?.length===2&&game.rounds.every((r,ri)=>r.categories?.length===6&&r.categories.every(c=>c.name&&c.clues?.length===5&&c.clues.every(q=>clueLengthValid(q.clue)&&q.response&&clueDoesNotRevealResponse(q))&&categoryRuleValid(c))&&r.dailyDoubles?.length===(ri?2:1))&&game.final?.category&&clueLengthValid(game.final?.clue)&&game.final?.response&&clueDoesNotRevealResponse(game.final)&&!gameHasCategoryRepeat(game)&&!gameHasCategoryOverlap(game)&&!gameHasResponseRepeat(game));
 }
 
 function generatedGameIssues(game,priorRecords=[],priorCategories=[]){
-  const issues=[],seenClues=new Set(priorRecords.map(item=>clueFingerprint(typeof item==='string'?item:item?.clue)).filter(Boolean)),seenFacts=new Set(priorRecords.map(item=>typeof item==='string'?'':item?.factFingerprint||`${clueFingerprint(item?.category)}|${clueFingerprint(item?.response)}`).filter(value=>value&&value!=='|')),seenCategories=new Set(priorCategories.map(clueFingerprint).filter(Boolean));
+  const issues=[],seenClues=new Set(priorRecords.map(item=>clueFingerprint(typeof item==='string'?item:item?.clue)).filter(Boolean)),seenFacts=new Set(priorRecords.map(item=>typeof item==='string'?'':item?.factFingerprint||`${clueFingerprint(item?.category)}|${clueFingerprint(item?.response)}`).filter(value=>value&&value!=='|')),seenCategories=new Set(priorCategories.map(clueFingerprint).filter(Boolean)),boardCategories=[],seenResponses=new Set();
   for(let round=0;round<(game?.rounds||[]).length;round++)for(let category=0;category<(game.rounds[round].categories||[]).length;category++){
     const current=game.rounds[round].categories[category],categoryKey=clueFingerprint(current?.name);
     if(!categoryKey||seenCategories.has(categoryKey)){issues.push({kind:'category',round,category,reason:'repeated or missing category title'});continue;}
+    if(boardCategories.some(name=>categoriesOverlap(name,current.name))){issues.push({kind:'category',round,category,reason:'overlapping category topic'});continue;}
     seenCategories.add(categoryKey);
+    boardCategories.push(current.name);
     for(let clueIndex=0;clueIndex<(current.clues||[]).length;clueIndex++){
-      const item=current.clues[clueIndex],fingerprint=clueFingerprint(item?.clue),fact=`${categoryKey}|${clueFingerprint(item?.response)}`,reasons=[];
+      const item=current.clues[clueIndex],fingerprint=clueFingerprint(item?.clue),responseKey=clueFingerprint(item?.response),fact=`${categoryKey}|${responseKey}`,reasons=[];
       if(!clueLengthValid(item?.clue))reasons.push('clue length');
       if(!item?.response)reasons.push('missing response');
       if(!clueDoesNotRevealResponse(item))reasons.push('clue reveals response');
       if(!categoryClueRuleValid(current,item))reasons.push('category mechanic');
       if(!fingerprint||seenClues.has(fingerprint))reasons.push('repeated clue');
       if(fact==='|'||seenFacts.has(fact))reasons.push('repeated response in category');
+      if(responseKey&&seenResponses.has(responseKey))reasons.push('response repeated elsewhere on board');
       if(reasons.length)issues.push({kind:'clue',round,category,clue:clueIndex,reason:reasons.join(', ')});
-      if(fingerprint)seenClues.add(fingerprint);if(fact!=='|')seenFacts.add(fact);
+      if(fingerprint)seenClues.add(fingerprint);if(fact!=='|')seenFacts.add(fact);if(responseKey)seenResponses.add(responseKey);
     }
   }
   const final=game?.final,finalCategory=clueFingerprint(final?.category),finalFingerprint=clueFingerprint(final?.clue),finalFact=`${finalCategory}|${clueFingerprint(final?.response)}`,finalReasons=[];
@@ -185,6 +207,7 @@ function generatedGameIssues(game,priorRecords=[],priorCategories=[]){
   if(!clueDoesNotRevealResponse(final))finalReasons.push('clue reveals response');
   if(!finalFingerprint||seenClues.has(finalFingerprint))finalReasons.push('repeated clue');
   if(finalFact==='|'||seenFacts.has(finalFact))finalReasons.push('repeated response in category');
+  if(clueFingerprint(final?.response)&&seenResponses.has(clueFingerprint(final.response)))finalReasons.push('response repeated elsewhere on board');
   if(finalReasons.length)issues.push({kind:'final',reason:finalReasons.join(', ')});
   return issues;
 }
@@ -202,7 +225,7 @@ async function repairGeneratedGame(game,priorRecords=[],priorCategories=[]){
   for(let pass=0;pass<6;pass++){
     const issues=generatedGameIssues(game,priorRecords,priorCategories);if(!issues.length)return game;
     const categoryIssues=issues.filter(issue=>issue.kind==='category');
-    if(categoryIssues.length){for(const issue of categoryIssues){const current=game.rounds[issue.round].categories[issue.category],replacement=await requestStructured('jeopardy_category_repair',repairCategorySchema,`Replace one invalid Jeopardy category with a different title and five authentic broadcast-style clues. Preserve the requested round difficulty. Never reuse a supplied category title or clue. Clues must be concise declarative statements, not questions, and must not contain their response or a distinctive response root. Aliases must be genuine equivalents only. Use mechanicProof "standard" unless this is a valid BEFORE & AFTER category.`,JSON.stringify({round:issue.round?'DOUBLE JEOPARDY!':'JEOPARDY!',invalidCategory:current,reason:issue.reason,avoidCategories:priorCategories.slice(-500),avoidClues:priorRecords.slice(-500).map(item=>typeof item==='string'?item:item.clue)}),5000);game.rounds[issue.round].categories[issue.category]=replacement;}continue;}
+    if(categoryIssues.length){for(const issue of categoryIssues){const current=game.rounds[issue.round].categories[issue.category],replacement=await requestStructured('jeopardy_category_repair',repairCategorySchema,`Replace one invalid Jeopardy category with a different title and five authentic broadcast-style clues. Preserve the requested round difficulty. Do not reuse or substantially overlap the subject or theme of any supplied category title, and never reuse a supplied clue. Clues must be concise declarative statements, not questions, and must not contain their response or a distinctive response root. Aliases must be genuine equivalents only. Use mechanicProof "standard" unless this is a valid BEFORE & AFTER category.`,JSON.stringify({round:issue.round?'DOUBLE JEOPARDY!':'JEOPARDY!',invalidCategory:current,reason:issue.reason,avoidCategories:[...priorCategories,...gameCategories(game)].slice(-500),avoidClues:priorRecords.slice(-500).map(item=>typeof item==='string'?item:item.clue)}),5000);game.rounds[issue.round].categories[issue.category]=replacement;}continue;}
     const clueIssues=issues.filter(issue=>issue.kind==='clue');
     if(clueIssues.length){const schema={type:'object',additionalProperties:false,properties:{repairs:{type:'array',minItems:clueIssues.length,maxItems:clueIssues.length,items:repairClueSchema}},required:['repairs']},requests=clueIssues.map(issue=>{const category=game.rounds[issue.round].categories[issue.category];return {id:`${issue.round}:${issue.category}:${issue.clue}`,round:issue.round?'DOUBLE JEOPARDY!':'JEOPARDY!',value:(issue.round?[400,800,1200,1600,2000]:[200,400,600,800,1000])[issue.clue],category:category.name,invalid:category.clues[issue.clue],reason:issue.reason};}),result=await requestStructured('jeopardy_clue_repairs',schema,`Repair only the listed invalid Jeopardy clues. Return exactly one replacement per id. Match each category and dollar-value difficulty. Use compact, natural, declarative broadcast wording with a uniquely correct response. Never expose the response or its distinctive root in the clue. Aliases must be genuine equivalents only. Obey Starts With and every other category mechanic; for BEFORE & AFTER, supply an exact FIRST ANSWER || SECOND ANSWER || SHARED BRIDGE proof.`,JSON.stringify({requests,avoidClues:priorRecords.slice(-500).map(item=>typeof item==='string'?item:item.clue)}),Math.max(3000,clueIssues.length*450));const byId=new Map(result.repairs.map(item=>[item.id,item]));for(const issue of clueIssues){const id=`${issue.round}:${issue.category}:${issue.clue}`,replacement=byId.get(id);if(replacement){delete replacement.id;game.rounds[issue.round].categories[issue.category].clues[issue.clue]=replacement;}}}
     if(issues.some(issue=>issue.kind==='final'))game.final=await requestStructured('final_jeopardy_repair',repairFinalSchema,`Replace one invalid Final Jeopardy item with a fresh category and authentic clue. Use one concise declarative statement, two useful facts, and one uniquely gettable response. Do not reuse supplied categories or clues, and never expose the response or its root in the clue. Aliases must be genuine equivalents only.`,JSON.stringify({invalid:game.final,reason:issues.find(issue=>issue.kind==='final').reason,avoidCategories:priorCategories.slice(-500),avoidClues:priorRecords.slice(-500).map(item=>typeof item==='string'?item:item.clue)}),2500);
@@ -211,7 +234,7 @@ async function repairGeneratedGame(game,priorRecords=[],priorCategories=[]){
 }
 
 function categoryValidAgainst(category,priorRecords=[],priorCategories=[]){
-  if(!category?.name||category.clues?.length!==5||gameHasCategoryRepeat({rounds:[{categories:[category]}]},priorCategories))return false;
+  if(!category?.name||category.clues?.length!==5||gameHasCategoryRepeat({rounds:[{categories:[category]}]},priorCategories)||priorCategories.some(name=>categoriesOverlap(name,category.name)))return false;
   if(!category.clues.every(item=>clueLengthValid(item.clue)&&item.response&&clueDoesNotRevealResponse(item))||!categoryRuleValid(category))return false;
   return !gameHasDuplicate({rounds:[{categories:[category]}]},priorRecords);
 }
@@ -219,7 +242,7 @@ function categoryValidAgainst(category,priorRecords=[],priorCategories=[]){
 async function generateCategory(round,index,priorRecords,priorCategories){
   let lastError;
   for(let attempt=1;attempt<=8;attempt++)try{
-    const category=await requestStructured('jeopardy_category',repairCategorySchema,`Write one family-safe category with exactly five authentic Jeopardy clues for the ${round} round. The five clues are ordered from easiest to hardest. Each clue is a compact declarative statement whose missing subject is the response, never a textbook question or an instruction to name something. Use natural broadcast-ready syntax, varied openings, occasional wit, and no more than ${MAX_CLUE_WORDS} words or ${MAX_CLUE_CHARS} characters. Every clue must point uniquely to a concise canonical response, genuinely fit the category, and contain neither its response nor a distinctive response root. Aliases are only genuine equivalents, never related concepts. Do not reuse a supplied clue, fact, or category title. Classic wordplay is welcome only when every clue obeys the mechanic. BEFORE & AFTER must combine two real answers on one exact shared bridge and use mechanicProof "FIRST ANSWER || SECOND ANSWER || SHARED BRIDGE". For all other categories use mechanicProof "standard". Enforce every Starts With, Ends With, rhyme, letter-count, or quotation-mark rule across all five responses. Return only schema-valid JSON after checking all five clues.`,JSON.stringify({seed:crypto.randomUUID(),round,categorySlot:index+1,avoidCategories:priorCategories.slice(-500),avoidClues:priorRecords.slice(-700).map(item=>typeof item==='string'?item:item.clue)}),3500);
+    const category=await requestStructured('jeopardy_category',repairCategorySchema,`Write one family-safe category with exactly five authentic Jeopardy clues for the ${round} round. The five clues are ordered from easiest to hardest. Each clue is a compact declarative statement whose missing subject is the response, never a textbook question or an instruction to name something. Use natural broadcast-ready syntax, varied openings, occasional wit, and no more than ${MAX_CLUE_WORDS} words or ${MAX_CLUE_CHARS} characters. Every clue must point uniquely to a concise canonical response, genuinely fit the category, and contain neither its response nor a distinctive response root. Aliases are only genuine equivalents, never related concepts. Do not reuse or substantially overlap the subject or theme of a supplied category, clue, or fact. Classic wordplay is welcome only when every clue obeys the mechanic. BEFORE & AFTER must combine two real answers on one exact shared bridge and use mechanicProof "FIRST ANSWER || SECOND ANSWER || SHARED BRIDGE". For all other categories use mechanicProof "standard". Enforce every Starts With, Ends With, rhyme, letter-count, or quotation-mark rule across all five responses. Return only schema-valid JSON after checking all five clues.`,JSON.stringify({seed:crypto.randomUUID(),round,categorySlot:index+1,avoidCategories:priorCategories.slice(-500),avoidClues:priorRecords.slice(-700).map(item=>typeof item==='string'?item:item.clue)}),3500);
     if(categoryValidAgainst(category,priorRecords,priorCategories))return category;
     lastError=new Error(`Category ${index+1} failed validation`);
   }catch(error){lastError=error;}
@@ -261,9 +284,19 @@ async function generateFinalClue(avoid=[],avoidCategories=[]){
   if(!item.category||!clueLengthValid(item.clue)||!item.response||!clueDoesNotRevealResponse(item))throw new Error('Generated Final Jeopardy clue failed validation.');return item;
 }
 
-async function judge(given,item){
-  if(locallyCorrect(given,item))return true;if(!plausibleVariant(given,item)||!process.env.OPENAI_API_KEY)return false;
-  try{const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:AbortSignal.timeout(10000),headers:{Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({model:process.env.OPENAI_JUDGE_MODEL||'gpt-5-mini',instructions:'Act as a strict Jeopardy judge. Correct means the contestant named the same person, place, object, title, species, or term as the canonical response or a genuine alias. Accept harmless articles, singular/plural changes, obvious minor spelling or speech-recognition errors, surnames when unambiguous, and omitted nonessential qualifiers when the remaining name still identifies the same unique answer—for example, “Pyrimid of Giza” for “Great Pyramid of Giza.” Reject a different member of the same category, a related concept, a description, or a merely plausible response. Rhinoceros is NOT narwhal. Atmospheric pressure gauge is NOT barometer. Similar subject matter is never enough. When uncertain, mark it incorrect. Return accepted only for exact_equivalent or harmless_variant.',input:JSON.stringify({clue:item.clue,expected:item.response,aliases:item.aliases||[],given}),text:{format:{type:'json_schema',name:'judgment',strict:true,schema:{type:'object',additionalProperties:false,properties:{verdict:{type:'string',enum:['exact_equivalent','harmless_variant','related_but_different','unrelated']},correct:{type:'boolean'}},required:['verdict','correct']}}}})});if(!response.ok)return false;const data=await response.json(),output=responseText(data);if(!output)return false;const result=JSON.parse(output);return result.correct===true&&['exact_equivalent','harmless_variant'].includes(result.verdict);}catch{return false;}
+async function judgeResponse(given,item,{allowPrompt=true}={}){
+  if(locallyCorrect(given,item))return {decision:'correct',verdict:'exact_equivalent'};
+  if(!plausibleVariant(given,item))return {decision:'incorrect',verdict:'unrelated'};
+  const localPrompt=locallyNeedsMoreSpecific(given,item);
+  if(!process.env.OPENAI_API_KEY)return {decision:allowPrompt&&localPrompt?'prompt':'incorrect',verdict:localPrompt?'needs_more_specific':'related_but_different'};
+  try{
+    const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:AbortSignal.timeout(10000),headers:{Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({model:process.env.OPENAI_JUDGE_MODEL||'gpt-5-mini',instructions:'Act as a strict Jeopardy judge. Correct means the contestant named the same person, place, object, title, species, or term as the canonical response or a genuine alias. Accept harmless articles, singular/plural changes, obvious minor spelling or speech-recognition errors (including “Octoberfest” for “Oktoberfest”), surnames when unambiguous, and omitted nonessential qualifiers when the remaining name still identifies the same unique answer—for example, “Pyrimid of Giza” for “Great Pyramid of Giza.” Use needs_more_specific only when the response is a broader class that could become uniquely correct by adding a missing qualifier—for example, “elephant” for “African elephant.” Reject a different member of the same category, a related concept, a description, or a merely plausible response. Rhinoceros is NOT narwhal. Atmospheric pressure gauge is NOT barometer. Similar subject matter is never enough. The correct boolean is true only for exact_equivalent or harmless_variant.',input:JSON.stringify({clue:item.clue,expected:item.response,aliases:item.aliases||[],given}),text:{format:{type:'json_schema',name:'judgment',strict:true,schema:{type:'object',additionalProperties:false,properties:{verdict:{type:'string',enum:['exact_equivalent','harmless_variant','needs_more_specific','related_but_different','unrelated']},correct:{type:'boolean'}},required:['verdict','correct']}}}})});
+    if(!response.ok)throw new Error('Judge request failed');const data=await response.json(),output=responseText(data);if(!output)throw new Error('Judge returned no result');const result=JSON.parse(output);
+    if(result.correct===true&&['exact_equivalent','harmless_variant'].includes(result.verdict))return {decision:'correct',verdict:result.verdict};
+    if(allowPrompt&&result.verdict==='needs_more_specific')return {decision:'prompt',verdict:result.verdict};
+    return {decision:'incorrect',verdict:result.verdict};
+  }catch{return {decision:allowPrompt&&localPrompt?'prompt':'incorrect',verdict:localPrompt?'needs_more_specific':'related_but_different'};}
 }
+async function judge(given,item){return (await judgeResponse(given,item,{allowPrompt:false})).decision==='correct';}
 
-module.exports={FALLBACK_GAME,EMERGENCY_GAME,MAX_CLUE_CHARS,MAX_CLUE_WORDS,BOARD_GENERATION_TIMEOUT_MS,normalize,clueFingerprint,responseText,gameClueRecords,gameCategories,gameHasCategoryRepeat,gameHasDuplicate,locallyCorrect,plausibleVariant,categoryRuleValid,beforeAfterValid,clueLengthValid,clueDoesNotRevealResponse,generatedGameIssues,repairGeneratedGame,validateGame,generateGame,generateFinalClue,judge};
+module.exports={FALLBACK_GAME,EMERGENCY_GAME,MAX_CLUE_CHARS,MAX_CLUE_WORDS,BOARD_GENERATION_TIMEOUT_MS,normalize,clueFingerprint,responseText,gameClueRecords,gameCategories,gameHasCategoryRepeat,categoryTopicTokens,categoriesOverlap,gameHasCategoryOverlap,gameHasResponseRepeat,gameHasDuplicate,locallyCorrect,plausibleVariant,locallyNeedsMoreSpecific,categoryRuleValid,beforeAfterValid,clueLengthValid,clueDoesNotRevealResponse,generatedGameIssues,repairGeneratedGame,validateGame,generateGame,generateFinalClue,judgeResponse,judge};
