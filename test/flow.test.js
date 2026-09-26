@@ -119,6 +119,7 @@ test('game-bank status exposes live ready and target counts',async()=>{
   assert.equal(typeof bank.ready,'number');
   assert.equal(bank.target,GAME_BANK_TARGET);
   assert.equal(typeof bank.generating,'boolean');
+  assert.equal(bank.autoFill,false);
   assert.equal(typeof bank.repairing,'boolean');
   assert.equal(typeof bank.repairQueued,'number');
   assert.equal(typeof bank.buildCompleted,'number');
