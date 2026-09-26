@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 process.env.NODE_ENV='test';
 const {io:connect}=require('socket.io-client');
-const {server,io,rooms,ANSWER_TIME_MS,DAILY_ANSWER_TIME_MS,CLARIFICATION_TIME_MS,CLUE_READ_FAILSAFE_MS,GAME_BANK_TARGET,GAME_BANK_VERSION,JUDGING_DIAGNOSTICS,classifySavedBank,makeRoom,publicRoom,orderPlayersForIntro,firstName,validWagerAudio,phraseCorrect,finishClue,finishGame,prepareFinalReveal,advanceFinalReveal,advanceReview,dispose}=require('../server');
+const {server,io,rooms,ANSWER_TIME_MS,DAILY_ANSWER_TIME_MS,CLARIFICATION_TIME_MS,CLUE_READ_FAILSAFE_MS,GAME_BANK_TARGET,GAME_BANK_VERSION,JUDGING_DIAGNOSTICS,classifySavedBank,makeRoom,publicRoom,orderPlayersForIntro,openingSelectorId,firstName,validWagerAudio,phraseCorrect,finishClue,finishGame,prepareFinalReveal,advanceFinalReveal,advanceReview,dispose}=require('../server');
 const {BOARD_GENERATION_TIMEOUT_MS,FALLBACK_GAME}=require('../src/game');
 let url;
 test.before(async()=>{await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));url=`http://127.0.0.1:${server.address().port}`;});
@@ -153,6 +153,21 @@ test('landing screen shows and refreshes game-board availability',()=>{
 test('the returning champion is ordered last for introductions',()=>{
   const players=[{id:'champ',key:'returning'},{id:'first',key:'first'},{id:'second',key:'second'}];
   assert.deepEqual(orderPlayersForIntro(players,'returning').map(player=>player.id),['first','second','champ']);
+});
+
+test('the returning champion controls the first Jeopardy selection',()=>{
+  const players=[{id:'first',key:'first'},{id:'champ',key:'returning'},{id:'third',key:'third'}];
+  assert.equal(openingSelectorId(players,'returning'),'champ');
+  assert.equal(openingSelectorId(players,'missing'),'first');
+});
+
+test('round breaks do not announce the next round and contestant intros use soft looping music',()=>{
+  const client=fs.readFileSync(require.resolve('../public/app.js'),'utf8');
+  assert.doesNotMatch(client,/Double Jeopardy is coming up/);
+  assert.match(client,/INTRO_THEME_SRC='data:audio\/mpeg;base64,/);
+  assert.match(client,/audio\.loop=true;audio\.volume=\.13/);
+  assert.match(client,/startIntroTheme\(\)/);
+  assert.match(client,/stopIntroTheme\(introTheme\)/);
 });
 
 test('Trebek introduction uses the corrected contestant and host cue points',()=>{
