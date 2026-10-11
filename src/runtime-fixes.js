@@ -1,15 +1,11 @@
 'use strict';
 
-// This module is preloaded before server.js. It patches the exported game helpers
-// without changing the core game engine, so harmless orthographic variants are
-// accepted before AI judging and unattended board-generation work has a hard cap.
+// This module is loaded by src/start.js after its generation-source patch has
+// been applied. It keeps harmless orthographic answer variants fair and puts a
+// rolling cost ceiling on unattended game-bank work.
 const game = require('./game');
 
 function orthographicKey(value = '') {
-  // game.normalize already removes Jeopardy phrasing, articles, punctuation,
-  // accents and case. Removing the remaining spaces makes harmless word-break
-  // and hyphenation differences equivalent: "yardwork" == "yard work",
-  // "ice-cream" == "ice cream", "e mail" == "email".
   return game.normalize(value).replace(/\s+/g, '');
 }
 
@@ -36,23 +32,31 @@ game.judge = async function patchedJudge(given, item) {
   return originalJudge(given, item);
 };
 
-// Cost guard for the background game bank. The server itself already creates at
-// most one brand-new board per ensureGameBank() call and pauses after an error.
-// This adds a process-wide ceiling across BOTH new-board jobs and saved-board
-// repair jobs, preventing repeated room creation from starting an open-ended run.
-const configuredLimit = Number.parseInt(process.env.GAME_BANK_MAX_JOBS_PER_PROCESS || '2', 10);
-const maxJobs = Number.isFinite(configuredLimit) ? Math.max(1, Math.min(configuredLimit, 5)) : 2;
-let generationJobs = 0;
+// Rolling budget instead of a lifetime-per-process cap. A lifetime cap made the
+// bank stop forever after a handful of failed boards. This still bounds spend,
+// but allows the refill worker to make measured progress without a redeploy.
+const configuredLimit = Number.parseInt(
+  process.env.GAME_BANK_MAX_JOBS_PER_HOUR || process.env.GAME_BANK_MAX_JOBS_PER_PROCESS || '3',
+  10
+);
+const maxJobsPerHour = Number.isFinite(configuredLimit)
+  ? Math.max(1, Math.min(configuredLimit, 5))
+  : 3;
+const JOB_WINDOW_MS = 60 * 60 * 1000;
+const generationJobs = [];
 
 function reserveGenerationJob(kind) {
   if (process.env.GAME_BANK_AUTO_FILL !== 'true') return;
-  if (generationJobs >= maxJobs) {
-    const error = new Error(`Game-bank ${kind} paused: process safety cap of ${maxJobs} generation job${maxJobs === 1 ? '' : 's'} reached.`);
-    error.code = 'GAME_BANK_PROCESS_CAP';
+  const now = Date.now();
+  while (generationJobs.length && generationJobs[0] <= now - JOB_WINDOW_MS) generationJobs.shift();
+  if (generationJobs.length >= maxJobsPerHour) {
+    const retryInMs = Math.max(1_000, generationJobs[0] + JOB_WINDOW_MS - now);
+    const error = new Error(`Game-bank ${kind} paused: hourly safety budget of ${maxJobsPerHour} generation job${maxJobsPerHour === 1 ? '' : 's'} reached; retry in about ${Math.ceil(retryInMs / 60000)} minute(s).`);
+    error.code = 'GAME_BANK_HOURLY_CAP';
     throw error;
   }
-  generationJobs += 1;
-  console.log(`[game-bank] starting ${kind} job ${generationJobs}/${maxJobs}`);
+  generationJobs.push(now);
+  console.log(`[game-bank] starting ${kind} job ${generationJobs.length}/${maxJobsPerHour} in rolling hour`);
 }
 
 const originalGenerateGame = game.generateGame;
@@ -68,4 +72,4 @@ game.repairGeneratedGame = async function cappedRepairGeneratedGame(...args) {
   return originalRepairGeneratedGame(...args);
 };
 
-console.log(`[runtime-fixes] orthographic judging enabled; game-bank process cap=${maxJobs}`);
+console.log(`[runtime-fixes] orthographic judging enabled; game-bank rolling hourly cap=${maxJobsPerHour}`);
