@@ -29,8 +29,20 @@ if (gameSource.includes(oldCategoryValidation)) gameSource = gameSource.replace(
 else if (!gameSource.includes(newCategoryValidation)) throw new Error('Jeopardy generation patch failed: category validation block changed.');
 if (gameSource.includes(oldAttemptLoop)) gameSource = gameSource.replace(oldAttemptLoop, newAttemptLoop);
 else if (!gameSource.includes(newAttemptLoop)) throw new Error('Jeopardy generation patch failed: category retry loop changed.');
+
+// Never discard a fully generated board just because targeted repair fails.
+// Attach the candidate board to the thrown error so server.js can persist it
+// in the durable repair queue and resume from those already-paid-for clues.
+const oldRepairLine = `  if(issues.length)game=await repairGeneratedGame(game,avoid,avoidCategories);`;
+const newRepairLine = `  if(issues.length)try{game=await repairGeneratedGame(game,avoid,avoidCategories);}catch(error){error.salvageGame=game;throw error;}`;
+if (gameSource.includes(oldRepairLine)) gameSource = gameSource.replace(oldRepairLine, newRepairLine);
+else if (!gameSource.includes(newRepairLine)) throw new Error('Jeopardy salvage patch failed: repair line changed.');
+const oldFinalAssembly = `  if(!valid||duplicate||repeatedCategory||issues.length)throw new Error(\`Final assembly check failed: \${JSON.stringify({valid,duplicate,repeatedCategory,issues:issues.slice(0,8)})}\`);`;
+const newFinalAssembly = `  if(!valid||duplicate||repeatedCategory||issues.length){const error=new Error(\`Final assembly check failed: \${JSON.stringify({valid,duplicate,repeatedCategory,issues:issues.slice(0,8)})}\`);error.salvageGame=game;throw error;}`;
+if (gameSource.includes(oldFinalAssembly)) gameSource = gameSource.replace(oldFinalAssembly, newFinalAssembly);
+else if (!gameSource.includes(newFinalAssembly)) throw new Error('Jeopardy salvage patch failed: final assembly line changed.');
 fs.writeFileSync(gamePath, gameSource, 'utf8');
-console.log('[generation-fix] category generation now defers repairable clue defects to targeted repair; semantic overlap limited to recent history; category retries capped at 2');
+console.log('[generation-fix] category generation now defers repairable clue defects to targeted repair; semantic overlap limited to recent history; category retries capped at 2; failed full boards are salvageable');
 
 const serverPath = path.join(__dirname, '..', 'server.js');
 let serverSource = fs.readFileSync(serverPath, 'utf8');
@@ -58,6 +70,11 @@ for (const [oldNeedle, newNeedle, label] of [[oldChampionHelpers,newChampionHelp
   if (serverSource.includes(oldNeedle)) serverSource = serverSource.replace(oldNeedle, newNeedle);
   else if (!serverSource.includes(newNeedle)) throw new Error(`Jeopardy champion patch failed: ${label} changed.`);
 }
+
+const oldBankCatch = `}catch(error){bankLastError=String(error.message||error).slice(0,1000);console.warn('Question bank generation paused:',bankLastError);/* Stay paused after an error; no automatic retry. */}finally{bankGenerating=false;}}`;
+const newBankCatch = `}catch(error){if(error?.salvageGame){try{gameBankRepairQueue.push(error.salvageGame);saveBankSync();console.warn('[game-bank] saved failed full board to durable repair queue; paid-for clues will be reused.');}catch(saveError){console.error('[game-bank] could not persist salvage board:',saveError);}}bankLastError=String(error.message||error).slice(0,1000);console.warn('Question bank generation paused:',bankLastError);/* Stay paused after an error; no automatic retry. */}finally{bankGenerating=false;}}`;
+if (serverSource.includes(oldBankCatch)) serverSource = serverSource.replace(oldBankCatch, newBankCatch);
+else if (!serverSource.includes(newBankCatch)) throw new Error('Jeopardy salvage patch failed: game-bank catch block changed.');
 fs.writeFileSync(serverPath, serverSource, 'utf8');
 
 const clientPath = path.join(__dirname, '..', 'public', 'app.js');
