@@ -1,10 +1,8 @@
 'use strict';
 
-// Patch the deployed generator before anything requires src/game.js. The original
-// duplicate ledger remains permanent: exact category names, clues and facts still
-// cannot repeat. The change below only relaxes the much broader semantic category
-// overlap test, which had become so restrictive after many boards that perfectly
-// new categories were being rejected over and over.
+// Patch the deployed generator before anything requires src/game.js. These runtime
+// patches are deliberately idempotent because Railway can restart the same container
+// filesystem after a crash. On a restart, an already-patched file must be accepted.
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -19,37 +17,31 @@ const oldCategoryValidation = `function categoryValidAgainst(category,priorRecor
 
 const newCategoryValidation = `function categoryValidAgainst(category,priorRecords=[],priorCategories=[]){
   if(!category?.name||category.clues?.length!==5)return false;
-  // Exact category names are permanently unique across the ledger and queued boards.
   if(gameHasCategoryRepeat({rounds:[{categories:[category]}]},priorCategories))return false;
-  // Semantic/theme overlap is useful within a board and against very recent boards,
-  // but applying it to the entire historical category ledger eventually makes new
-  // boards mathematically hard to generate. Keep this guard to the recent window.
   const recentCategories=priorCategories.slice(-18);
   if(recentCategories.some(name=>categoriesOverlap(name,category.name)))return false;
   if(!category.clues.every(item=>clueLengthValid(item.clue)&&item.response&&clueDoesNotRevealResponse(item))||!categoryRuleValid(category))return false;
-  // Clue text and category+response facts remain permanently unique.
   return !gameHasDuplicate({rounds:[{categories:[category]}]},priorRecords);
 }`;
 
 const oldAttemptLoop = 'for(let attempt=1;attempt<=8;attempt++)try{';
 const newAttemptLoop = 'for(let attempt=1;attempt<=4;attempt++)try{';
 
-if (!gameSource.includes(oldCategoryValidation)) {
+if (gameSource.includes(oldCategoryValidation)) {
+  gameSource = gameSource.replace(oldCategoryValidation, newCategoryValidation);
+} else if (!gameSource.includes(newCategoryValidation)) {
   throw new Error('Jeopardy generation patch failed: category validation block changed.');
 }
-if (!gameSource.includes(oldAttemptLoop)) {
+if (gameSource.includes(oldAttemptLoop)) {
+  gameSource = gameSource.replace(oldAttemptLoop, newAttemptLoop);
+} else if (!gameSource.includes(newAttemptLoop)) {
   throw new Error('Jeopardy generation patch failed: category retry loop changed.');
 }
-
-gameSource = gameSource
-  .replace(oldCategoryValidation, newCategoryValidation)
-  .replace(oldAttemptLoop, newAttemptLoop);
 fs.writeFileSync(gamePath, gameSource, 'utf8');
 console.log('[generation-fix] exact category/clue uniqueness preserved; semantic category overlap limited to recent history; category attempts capped at 4');
 
 // Champion streaks belong to the contestant, not to consecutive calendar games.
-// A champion keeps the streak while absent and only loses it by actually returning
-// and losing. This lets multiple absent champions retain their status until they play.
+// A champion keeps the streak while absent and only loses it by returning and losing.
 const serverPath = path.join(__dirname, '..', 'server.js');
 let serverSource = fs.readFileSync(serverPath, 'utf8');
 const oldChampionHelpers = `function introLine(room,p){
@@ -73,17 +65,14 @@ const newWinnerUpdate = `const key=winner.key,prior=history.players[key]||{name:
 const oldWinnerMessage = `room.message=\`\${firstName(winner)}, you are our new Jeopardy champion!\`;emit(room);`;
 const newWinnerMessage = `room.message=room.championExtended?\`\${firstName(winner)} has extended their winning streak to \${room.championStreak} games!\`:\`\${firstName(winner)}, you are our new Jeopardy champion!\`;emit(room);`;
 
-for (const [needle, label] of [
-  [oldChampionHelpers, 'champion intro helpers'],
-  [oldWinnerUpdate, 'champion history update'],
-  [oldWinnerMessage, 'champion result message'],
+for (const [oldNeedle, newNeedle, label] of [
+  [oldChampionHelpers, newChampionHelpers, 'champion intro helpers'],
+  [oldWinnerUpdate, newWinnerUpdate, 'champion history update'],
+  [oldWinnerMessage, newWinnerMessage, 'champion result message'],
 ]) {
-  if (!serverSource.includes(needle)) throw new Error(`Jeopardy champion patch failed: ${label} changed.`);
+  if (serverSource.includes(oldNeedle)) serverSource = serverSource.replace(oldNeedle, newNeedle);
+  else if (!serverSource.includes(newNeedle)) throw new Error(`Jeopardy champion patch failed: ${label} changed.`);
 }
-serverSource = serverSource
-  .replace(oldChampionHelpers, newChampionHelpers)
-  .replace(oldWinnerUpdate, newWinnerUpdate)
-  .replace(oldWinnerMessage, newWinnerMessage);
 fs.writeFileSync(serverPath, serverSource, 'utf8');
 
 const clientPath = path.join(__dirname, '..', 'public', 'app.js');
@@ -91,29 +80,21 @@ let clientSource = fs.readFileSync(clientPath, 'utf8');
 const oldIntroSentence = `function introSentence(p){return \`A \${p.occupation} from \${p.location}, \${p.name}.\`;}`;
 const newIntroSentence = `function introSentence(p){return p.championStats?\`Our current champion, a \${p.occupation} from \${p.location}, \${p.name}.\`:\`A \${p.occupation} from \${p.location}, \${p.name}.\`;}`;
 const oldChampionBanner = `<div class=\"champion-banner\">\${signature(winner)}<span>JEOPARDY! CHAMPION</span></div>`;
-const newChampionBanner = `<div class=\"champion-banner\">\${signature(winner)}<span>\${state.championExtended?\`${state.championStreak}-GAME WIN STREAK\`:'JEOPARDY! CHAMPION'}</span></div>`;
+const newChampionBanner = `<div class=\"champion-banner\">\${signature(winner)}<span>\${state.championExtended?(state.championStreak+'-GAME WIN STREAK'):'JEOPARDY! CHAMPION'}</span></div>`;
 const oldCelebrate = `async function celebrateChampionOnce(winner){const key=\`\${state.code}:champion\`;if(lastSpokenKey===key)return;lastSpokenKey=key;playApplause();await speak(state.testMode?\`\${firstName(winner)}, you are our test-game champion! No results will be saved.\`:\`\${firstName(winner)}, you are our new Jeopardy champion!\`,state.era);playApplause();}`;
 const newCelebrate = `async function celebrateChampionOnce(winner){const key=\`\${state.code}:champion\`;if(lastSpokenKey===key)return;lastSpokenKey=key;playApplause();const line=state.testMode?\`\${firstName(winner)}, you are our test-game champion! No results will be saved.\`:state.championExtended?\`\${firstName(winner)}, you've extended your winning streak to \${state.championStreak} games!\`:\`\${firstName(winner)}, you are our new Jeopardy champion!\`;await speak(line,state.era);playApplause();}`;
-for (const [needle, label] of [
-  [oldIntroSentence, 'client champion introduction'],
-  [oldChampionBanner, 'champion banner'],
-  [oldCelebrate, 'champion narration'],
+for (const [oldNeedle, newNeedle, label] of [
+  [oldIntroSentence, newIntroSentence, 'client champion introduction'],
+  [oldChampionBanner, newChampionBanner, 'champion banner'],
+  [oldCelebrate, newCelebrate, 'champion narration'],
 ]) {
-  if (!clientSource.includes(needle)) throw new Error(`Jeopardy champion client patch failed: ${label} changed.`);
+  if (clientSource.includes(oldNeedle)) clientSource = clientSource.replace(oldNeedle, newNeedle);
+  else if (!clientSource.includes(newNeedle)) throw new Error(`Jeopardy champion client patch failed: ${label} changed.`);
 }
-clientSource = clientSource
-  .replace(oldIntroSentence, newIntroSentence)
-  .replace(oldChampionBanner, newChampionBanner)
-  .replace(oldCelebrate, newCelebrate);
 fs.writeFileSync(clientPath, clientSource, 'utf8');
 console.log('[champion-fix] champion streaks persist across absences; returning champions announced; extended streak displayed on wins');
 
-// Load judging + rolling generation-budget patches only after game.js is patched.
 require('./runtime-fixes');
-
-// Start the normal Jeopardy server, then periodically trigger the existing
-// bank-refill path using a disposable test room. Test rooms use built-in clues,
-// so they do not consume a prepared AI board.
 const gameServer = require('../server');
 
 const port = process.env.PORT || 3000;
@@ -133,5 +114,4 @@ gameServer.server.listen(port, () => {
   console.log(`Jeopardy listening on ${port}`);
   triggerBankRefill();
 });
-
 setInterval(triggerBankRefill, intervalMs).unref();
