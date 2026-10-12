@@ -1,8 +1,5 @@
 'use strict';
 
-// Patch the deployed generator before anything requires src/game.js. These runtime
-// patches are deliberately idempotent because Railway can restart the same container
-// filesystem after a crash. On a restart, an already-patched file must be accepted.
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -23,25 +20,15 @@ const newCategoryValidation = `function categoryValidAgainst(category,priorRecor
   if(!category.clues.every(item=>clueLengthValid(item.clue)&&item.response&&clueDoesNotRevealResponse(item))||!categoryRuleValid(category))return false;
   return !gameHasDuplicate({rounds:[{categories:[category]}]},priorRecords);
 }`;
-
 const oldAttemptLoop = 'for(let attempt=1;attempt<=8;attempt++)try{';
 const newAttemptLoop = 'for(let attempt=1;attempt<=4;attempt++)try{';
-
-if (gameSource.includes(oldCategoryValidation)) {
-  gameSource = gameSource.replace(oldCategoryValidation, newCategoryValidation);
-} else if (!gameSource.includes(newCategoryValidation)) {
-  throw new Error('Jeopardy generation patch failed: category validation block changed.');
-}
-if (gameSource.includes(oldAttemptLoop)) {
-  gameSource = gameSource.replace(oldAttemptLoop, newAttemptLoop);
-} else if (!gameSource.includes(newAttemptLoop)) {
-  throw new Error('Jeopardy generation patch failed: category retry loop changed.');
-}
+if (gameSource.includes(oldCategoryValidation)) gameSource = gameSource.replace(oldCategoryValidation, newCategoryValidation);
+else if (!gameSource.includes(newCategoryValidation)) throw new Error('Jeopardy generation patch failed: category validation block changed.');
+if (gameSource.includes(oldAttemptLoop)) gameSource = gameSource.replace(oldAttemptLoop, newAttemptLoop);
+else if (!gameSource.includes(newAttemptLoop)) throw new Error('Jeopardy generation patch failed: category retry loop changed.');
 fs.writeFileSync(gamePath, gameSource, 'utf8');
 console.log('[generation-fix] exact category/clue uniqueness preserved; semantic category overlap limited to recent history; category attempts capped at 4');
 
-// Champion streaks belong to the contestant, not to consecutive calendar games.
-// A champion keeps the streak while absent and only loses it by returning and losing.
 const serverPath = path.join(__dirname, '..', 'server.js');
 let serverSource = fs.readFileSync(serverPath, 'utf8');
 const oldChampionHelpers = `function introLine(room,p){
@@ -64,12 +51,7 @@ const oldWinnerUpdate = `const key=winner.key,prior=history.players[key]||{name:
 const newWinnerUpdate = `const key=winner.key,prior=history.players[key]||{name:winner.name,wins:0,streak:0,earnings:0};const continuing=prior.streak>0;room.championExtended=continuing;prior.name=winner.name;prior.wins++;prior.streak=continuing?prior.streak+1:1;prior.earnings=(continuing?prior.earnings:0)+Math.max(0,winner.score);history.players[key]=prior;room.championStreak=prior.streak;room.championEarnings=prior.earnings;for(const player of room.players){if(player.key===key)continue;const losingStats=history.players[player.key];if(losingStats?.streak>0)losingStats.streak=0;}history.lastWinnerKey=key;`;
 const oldWinnerMessage = `room.message=\`\${firstName(winner)}, you are our new Jeopardy champion!\`;emit(room);`;
 const newWinnerMessage = `room.message=room.championExtended?\`\${firstName(winner)} has extended their winning streak to \${room.championStreak} games!\`:\`\${firstName(winner)}, you are our new Jeopardy champion!\`;emit(room);`;
-
-for (const [oldNeedle, newNeedle, label] of [
-  [oldChampionHelpers, newChampionHelpers, 'champion intro helpers'],
-  [oldWinnerUpdate, newWinnerUpdate, 'champion history update'],
-  [oldWinnerMessage, newWinnerMessage, 'champion result message'],
-]) {
+for (const [oldNeedle, newNeedle, label] of [[oldChampionHelpers,newChampionHelpers,'champion intro helpers'],[oldWinnerUpdate,newWinnerUpdate,'champion history update'],[oldWinnerMessage,newWinnerMessage,'champion result message']]) {
   if (serverSource.includes(oldNeedle)) serverSource = serverSource.replace(oldNeedle, newNeedle);
   else if (!serverSource.includes(newNeedle)) throw new Error(`Jeopardy champion patch failed: ${label} changed.`);
 }
@@ -83,11 +65,7 @@ const oldChampionBanner = `<div class=\"champion-banner\">\${signature(winner)}<
 const newChampionBanner = `<div class=\"champion-banner\">\${signature(winner)}<span>\${state.championExtended?(state.championStreak+'-GAME WIN STREAK'):'JEOPARDY! CHAMPION'}</span></div>`;
 const oldCelebrate = `async function celebrateChampionOnce(winner){const key=\`\${state.code}:champion\`;if(lastSpokenKey===key)return;lastSpokenKey=key;playApplause();await speak(state.testMode?\`\${firstName(winner)}, you are our test-game champion! No results will be saved.\`:\`\${firstName(winner)}, you are our new Jeopardy champion!\`,state.era);playApplause();}`;
 const newCelebrate = `async function celebrateChampionOnce(winner){const key=\`\${state.code}:champion\`;if(lastSpokenKey===key)return;lastSpokenKey=key;playApplause();const line=state.testMode?\`\${firstName(winner)}, you are our test-game champion! No results will be saved.\`:state.championExtended?\`\${firstName(winner)}, you've extended your winning streak to \${state.championStreak} games!\`:\`\${firstName(winner)}, you are our new Jeopardy champion!\`;await speak(line,state.era);playApplause();}`;
-for (const [oldNeedle, newNeedle, label] of [
-  [oldIntroSentence, newIntroSentence, 'client champion introduction'],
-  [oldChampionBanner, newChampionBanner, 'champion banner'],
-  [oldCelebrate, newCelebrate, 'champion narration'],
-]) {
+for (const [oldNeedle,newNeedle,label] of [[oldIntroSentence,newIntroSentence,'client champion introduction'],[oldChampionBanner,newChampionBanner,'champion banner'],[oldCelebrate,newCelebrate,'champion narration']]) {
   if (clientSource.includes(oldNeedle)) clientSource = clientSource.replace(oldNeedle, newNeedle);
   else if (!clientSource.includes(newNeedle)) throw new Error(`Jeopardy champion client patch failed: ${label} changed.`);
 }
@@ -96,22 +74,22 @@ console.log('[champion-fix] champion streaks persist across absences; returning 
 
 require('./runtime-fixes');
 const gameServer = require('../server');
-
 const port = process.env.PORT || 3000;
 const intervalMs = Math.max(60_000, Number.parseInt(process.env.GAME_BANK_REFILL_INTERVAL_MS || String(5 * 60 * 1000), 10) || 5 * 60 * 1000);
-
 function triggerBankRefill() {
   if (process.env.GAME_BANK_AUTO_FILL !== 'true' || !process.env.OPENAI_API_KEY) return;
-  try {
-    const room = gameServer.makeRoom({ testMode: true });
-    gameServer.dispose(room);
-  } catch (error) {
-    console.warn('[game-bank] refill trigger skipped:', error.message || error);
-  }
+  try { const room = gameServer.makeRoom({ testMode: true }); gameServer.dispose(room); }
+  catch (error) { console.warn('[game-bank] refill trigger skipped:', error.message || error); }
 }
-
-gameServer.server.listen(port, () => {
+gameServer.server.listen(port, async () => {
   console.log(`Jeopardy listening on ${port}`);
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/game-bank`);
+    const bank = await response.json();
+    console.log('[game-bank-status]', JSON.stringify(bank));
+  } catch (error) {
+    console.warn('[game-bank-status] unavailable:', error.message || error);
+  }
   triggerBankRefill();
 });
 setInterval(triggerBankRefill, intervalMs).unref();
