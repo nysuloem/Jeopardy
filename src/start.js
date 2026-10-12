@@ -14,20 +14,23 @@ const oldCategoryValidation = `function categoryValidAgainst(category,priorRecor
 
 const newCategoryValidation = `function categoryValidAgainst(category,priorRecords=[],priorCategories=[]){
   if(!category?.name||category.clues?.length!==5)return false;
+  // Regenerate only when the category itself is unusable. Clue-level problems
+  // are deliberately deferred to generatedGameIssues()/repairGeneratedGame(),
+  // which can replace just the bad clue instead of throwing away five good ones.
   if(gameHasCategoryRepeat({rounds:[{categories:[category]}]},priorCategories))return false;
   const recentCategories=priorCategories.slice(-18);
   if(recentCategories.some(name=>categoriesOverlap(name,category.name)))return false;
-  if(!category.clues.every(item=>clueLengthValid(item.clue)&&item.response&&clueDoesNotRevealResponse(item))||!categoryRuleValid(category))return false;
-  return !gameHasDuplicate({rounds:[{categories:[category]}]},priorRecords);
+  if(!category.clues.every(item=>clueLengthValid(item.clue)&&item.response))return false;
+  return true;
 }`;
 const oldAttemptLoop = 'for(let attempt=1;attempt<=8;attempt++)try{';
-const newAttemptLoop = 'for(let attempt=1;attempt<=4;attempt++)try{';
+const newAttemptLoop = 'for(let attempt=1;attempt<=2;attempt++)try{';
 if (gameSource.includes(oldCategoryValidation)) gameSource = gameSource.replace(oldCategoryValidation, newCategoryValidation);
 else if (!gameSource.includes(newCategoryValidation)) throw new Error('Jeopardy generation patch failed: category validation block changed.');
 if (gameSource.includes(oldAttemptLoop)) gameSource = gameSource.replace(oldAttemptLoop, newAttemptLoop);
 else if (!gameSource.includes(newAttemptLoop)) throw new Error('Jeopardy generation patch failed: category retry loop changed.');
 fs.writeFileSync(gamePath, gameSource, 'utf8');
-console.log('[generation-fix] exact category/clue uniqueness preserved; semantic category overlap limited to recent history; category attempts capped at 4');
+console.log('[generation-fix] category generation now defers repairable clue defects to targeted repair; semantic overlap limited to recent history; category retries capped at 2');
 
 const serverPath = path.join(__dirname, '..', 'server.js');
 let serverSource = fs.readFileSync(serverPath, 'utf8');
@@ -87,9 +90,7 @@ gameServer.server.listen(port, async () => {
     const response = await fetch(`http://127.0.0.1:${port}/api/game-bank`);
     const bank = await response.json();
     console.log('[game-bank-status]', JSON.stringify(bank));
-  } catch (error) {
-    console.warn('[game-bank-status] unavailable:', error.message || error);
-  }
+  } catch (error) { console.warn('[game-bank-status] unavailable:', error.message || error); }
   triggerBankRefill();
 });
 setInterval(triggerBankRefill, intervalMs).unref();
