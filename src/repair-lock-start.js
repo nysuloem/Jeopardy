@@ -39,7 +39,7 @@ const replacement = `async function repairGeneratedGame(game,priorRecords=[],pri
         game.rounds[issue.round].categories[issue.category]=replacementCategory;
       }
     }
-    const clueIssues=issues.filter(issue=>issue.kind==='clue'&&!badCategories.has(\`${'${issue.round}:${issue.category}'}\`));
+    const clueIssues=issues.filter(issue=>issue.kind==='clue');
     if(clueIssues.length){
       const schema={type:'object',additionalProperties:false,properties:{repairs:{type:'array',minItems:clueIssues.length,maxItems:clueIssues.length,items:repairClueSchema}},required:['repairs']};
       const requests=clueIssues.map(issue=>{const category=game.rounds[issue.round].categories[issue.category];return {id:\`${'${issue.round}:${issue.category}:${issue.clue}'}\`,round:issue.round?'DOUBLE JEOPARDY!':'JEOPARDY!',value:(issue.round?[400,800,1200,1600,2000]:[200,400,600,800,1000])[issue.clue],category:category.name,invalid:category.clues[issue.clue],reason:issue.reason};});
