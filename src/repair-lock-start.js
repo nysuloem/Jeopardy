@@ -180,13 +180,13 @@ async function protectedRepairGeneratedGame(game, priorRecords = [], priorCatego
 
 const gamePath = path.join(__dirname, 'game.js');
 let gameSource = fs.readFileSync(gamePath, 'utf8');
-const startMarker = 'async function repairGeneratedGame(game,priorRecords=[],priorCategories[]){';
-const endMarker = '\nfunction categoryValidAgainst(category,priorRecords=[],priorCategories=[]){';
-const start = gameSource.indexOf(startMarker);
-const end = gameSource.indexOf(endMarker, start);
-if (start < 0 || end < 0) {
-  throw new Error('Jeopardy repair-lock patch failed: repairGeneratedGame block changed.');
-}
+const startMatch = /async\s+function\s+repairGeneratedGame\s*\([^)]*\)\s*\{/.exec(gameSource);
+if (!startMatch) throw new Error('Jeopardy repair-lock patch failed: repairGeneratedGame was not found.');
+const start = startMatch.index;
+const tail = gameSource.slice(start);
+const endMatch = /\n\s*function\s+categoryValidAgainst\s*\(/.exec(tail);
+if (!endMatch) throw new Error('Jeopardy repair-lock patch failed: categoryValidAgainst boundary was not found.');
+const end = start + endMatch.index;
 
 const replacement = protectedRepairGeneratedGame
   .toString()
