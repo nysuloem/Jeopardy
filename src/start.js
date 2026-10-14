@@ -30,6 +30,34 @@ else if (!gameSource.includes(newCategoryValidation)) throw new Error('Jeopardy 
 if (gameSource.includes(oldAttemptLoop)) gameSource = gameSource.replace(oldAttemptLoop, newAttemptLoop);
 else if (!gameSource.includes(newAttemptLoop)) throw new Error('Jeopardy generation patch failed: category retry loop changed.');
 
+// Broaden the generator's subject space. Real Jeopardy revisits broad domains
+// constantly; freshness should apply to the actual clue/fact/response, not to
+// entire subjects such as history, science, literature, geography, or film.
+const oldCategoryPrompt = 'Do not reuse or substantially overlap the subject or theme of a supplied category, clue, or fact.';
+const newCategoryPrompt = 'Broad subject areas may and should recur across games. History, geography, literature, science, nature, language, arts, music, film and TV, sports, food, mythology, religion, technology, everyday life, architecture, transportation, famous people, and wordplay are all reusable domains. Keep the specific category title, clue wording, fact tested, and canonical response fresh; avoid exact or near-duplicate clues and obvious repeats, but do not avoid a broad topic merely because an earlier category used the same field.';
+if (gameSource.includes(oldCategoryPrompt)) gameSource = gameSource.replace(oldCategoryPrompt, newCategoryPrompt);
+else if (!gameSource.includes(newCategoryPrompt)) throw new Error('Jeopardy generation patch failed: category prompt changed.');
+
+const oldCategoryInput = 'avoidCategories:priorCategories.slice(-500),avoidClues:priorRecords.slice(-700)';
+const newCategoryInput = 'avoidCategories:priorCategories.slice(-60),avoidClues:priorRecords.slice(-350)';
+if (gameSource.includes(oldCategoryInput)) gameSource = gameSource.replace(oldCategoryInput, newCategoryInput);
+else if (!gameSource.includes(newCategoryInput)) throw new Error('Jeopardy generation patch failed: category avoid-list changed.');
+
+const oldRepairPrompt = 'Do not reuse or substantially overlap the subject or theme of any supplied category title, and never reuse a supplied clue.';
+const newRepairPrompt = 'Broad subject areas may recur. Choose a fresh category title and fresh clues/facts/responses, but do not reject a useful history, science, geography, literature, arts, entertainment, sports, food, language, nature, or other broad domain merely because that domain appeared before. Never reuse a supplied clue or an obvious near-duplicate.';
+if (gameSource.includes(oldRepairPrompt)) gameSource = gameSource.replace(oldRepairPrompt, newRepairPrompt);
+else if (!gameSource.includes(newRepairPrompt)) throw new Error('Jeopardy generation patch failed: category repair prompt changed.');
+
+const oldFinalPrompt = 'Avoid current events, politics, advertising, wordplay, prior facts, and supplied prior categories.';
+const newFinalPrompt = 'Avoid current events, politics, advertising, and wordplay. Never repeat a prior clue or tested fact, but broad Final Jeopardy subject areas may recur; a category such as history, literature, science, geography, arts, or famous people is acceptable even when that broad domain appeared before.';
+if (gameSource.includes(oldFinalPrompt)) gameSource = gameSource.replace(oldFinalPrompt, newFinalPrompt);
+else if (!gameSource.includes(newFinalPrompt)) throw new Error('Jeopardy generation patch failed: Final Jeopardy prompt changed.');
+
+const oldFinalInputLabel = 'Never reuse these category titles:';
+const newFinalInputLabel = 'Avoid exact reuse of these recent category titles; related broad subjects are allowed:';
+if (gameSource.includes(oldFinalInputLabel)) gameSource = gameSource.replace(oldFinalInputLabel, newFinalInputLabel);
+else if (!gameSource.includes(newFinalInputLabel)) throw new Error('Jeopardy generation patch failed: Final category guidance changed.');
+
 // Never discard a fully generated board just because targeted repair fails.
 // Attach the candidate board to the thrown error so server.js can persist it
 // in the durable repair queue and resume from those already-paid-for clues.
@@ -42,7 +70,7 @@ const newFinalAssembly = `  if(!valid||duplicate||repeatedCategory||issues.lengt
 if (gameSource.includes(oldFinalAssembly)) gameSource = gameSource.replace(oldFinalAssembly, newFinalAssembly);
 else if (!gameSource.includes(newFinalAssembly)) throw new Error('Jeopardy salvage patch failed: final assembly line changed.');
 fs.writeFileSync(gamePath, gameSource, 'utf8');
-console.log('[generation-fix] category generation now defers repairable clue defects to targeted repair; semantic overlap limited to recent history; category retries capped at 2; failed full boards are salvageable');
+console.log('[generation-fix] broader recurring subject domains enabled; fresh clues/facts/responses enforced; semantic overlap limited to recent history; category retries capped at 2; failed full boards are salvageable');
 
 const serverPath = path.join(__dirname, '..', 'server.js');
 let serverSource = fs.readFileSync(serverPath, 'utf8');
