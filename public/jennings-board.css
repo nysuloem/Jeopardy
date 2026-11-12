@@ -1,11 +1,14 @@
+/* Bundled fonts avoid platform-dependent Impact rendering and squeezed digits. */
+@font-face { font-family: 'Board Sans'; src: url('/assets/board-sans-semibold.woff') format('woff'); font-weight: 600; font-display: swap; }
+@font-face { font-family: 'Board Sans'; src: url('/assets/board-sans-bold.woff') format('woff'); font-weight: 700; font-display: swap; }
 /* Supplied Jennings stage photograph, 1768 × 990. Keep one aspect ratio for
    both the photograph and the live overlays, including remote-play embeds. */
-.jennings .board-stage {
+:is(.jennings,.trebek) .board-stage {
   container-type: size;
   padding: 0;
   background: #02040b;
 }
-.jennings .board-stage .photographed-board {
+:is(.jennings,.trebek) .board-stage .photographed-board {
   position: relative;
   container-type: inline-size;
   width: min(100cqw, 178.585859cqh);
@@ -19,7 +22,7 @@
   box-shadow: none;
   background: url('/assets/jennings-board-photo.webp') center / 100% 100% no-repeat;
 }
-.jennings .board-stage .photographed-board > .board {
+:is(.jennings,.trebek) .board-stage .photographed-board > .board {
   position: absolute;
   left: 17.364253%;
   top: 19.191919%;
@@ -37,16 +40,16 @@
   gap: 0;
   column-gap: .612423447%;
 }
-.jennings .photographed-board .board > :nth-child(n+7):nth-child(-n+12) { grid-row: 3; }
-.jennings .photographed-board .board > :nth-child(n+13):nth-child(-n+18) { grid-row: 5; }
-.jennings .photographed-board .board > :nth-child(n+19):nth-child(-n+24) { grid-row: 7; }
-.jennings .photographed-board .board > :nth-child(n+25):nth-child(-n+30) { grid-row: 9; }
-.jennings .photographed-board .board > :nth-child(n+31):nth-child(-n+36) { grid-row: 11; }
+:is(.jennings,.trebek) .photographed-board .board > :nth-child(n+7):nth-child(-n+12) { grid-row: 3; }
+:is(.jennings,.trebek) .photographed-board .board > :nth-child(n+13):nth-child(-n+18) { grid-row: 5; }
+:is(.jennings,.trebek) .photographed-board .board > :nth-child(n+19):nth-child(-n+24) { grid-row: 7; }
+:is(.jennings,.trebek) .photographed-board .board > :nth-child(n+25):nth-child(-n+30) { grid-row: 9; }
+:is(.jennings,.trebek) .photographed-board .board > :nth-child(n+31):nth-child(-n+36) { grid-row: 11; }
 /* Reuse a clean blue patch from this same photograph as each screen's opaque
    background. It covers every printed title/value without editing the image.
    This mask stays full size during the category/value reveal animations. */
-.jennings .photographed-board .board > .category,
-.jennings .photographed-board .board > .clue-tile {
+:is(.jennings,.trebek) .photographed-board .board > .category,
+:is(.jennings,.trebek) .photographed-board .board > .clue-tile {
   min-width: 0;
   min-height: 0;
   margin: 0;
@@ -62,46 +65,47 @@
   filter: none;
   overflow: hidden;
 }
-.jennings .photographed-board .category {
+:is(.jennings,.trebek) .photographed-board .category {
   grid-row: 1;
-  font: 900 clamp(5px, 1.45cqw, 30px)/1.02 Impact, 'Arial Narrow', sans-serif;
+  font: 700 clamp(5px, 1.35cqw, 28px)/1.1 'Board Sans', Arial, sans-serif;
   color: #fff;
   text-shadow: 1px 2px 1px #000;
   overflow-wrap: anywhere;
   text-wrap: balance;
 }
-.jennings .photographed-board .clue-tile {
-  font: 900 clamp(10px, 3.8cqw, 70px)/1 Impact, 'Arial Narrow', sans-serif;
-  letter-spacing: -.025em;
-  color: #efb350;
-  text-shadow: 1px 1px #ffd88a, 3px 3px 1px #190f08;
+:is(.jennings,.trebek) .photographed-board .clue-tile {
+  font: 600 clamp(10px, 2.9cqw, 56px)/1.1 'Board Sans', Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  color: #ffcf63;
+  text-shadow: 1px 2px 1px #071024;
 }
-.jennings .photographed-board .clue-tile > span {
+:is(.jennings,.trebek) .photographed-board .clue-tile > span {
   display: block;
   width: max-content;
   white-space: nowrap;
-  transform: scaleX(.76);
+  transform: none;
 }
-.jennings .photographed-board .clue-tile.used {
+:is(.jennings,.trebek) .photographed-board .clue-tile.used {
   color: transparent;
   text-shadow: none;
 }
-.jennings .photographed-board .intro-value,
-.jennings .photographed-board .intro-value.revealed {
+:is(.jennings,.trebek) .photographed-board .intro-value,
+:is(.jennings,.trebek) .photographed-board .intro-value.revealed {
   transform: none;
   filter: none;
   animation: none;
 }
-.jennings .photographed-board .intro-value > span {
+:is(.jennings,.trebek) .photographed-board .intro-value > span {
   opacity: 0;
-  transform: scaleX(.76) scale(.82);
+  transform: scale(.9);
   transition: opacity .12s ease, transform .16s ease;
 }
-.jennings .photographed-board .intro-value.revealed > span {
+:is(.jennings,.trebek) .photographed-board .intro-value.revealed > span {
   opacity: 1;
-  transform: scaleX(.76);
+  transform: none;
 }
-.jennings .photographed-board .board > .selected-clue {
+:is(.jennings,.trebek) .photographed-board .board > .selected-clue {
   border: 0 !important;
   outline: 3px solid #fff27a;
   outline-offset: -3px;
@@ -112,27 +116,100 @@
   from { filter: brightness(1); }
   to { filter: brightness(1.6); }
 }
-.jennings .photographed-board > .score-safe {
+:is(.jennings,.trebek) .photographed-board > .score-safe {
   bottom: 1.2%;
   width: 60%;
   height: 9.8%;
   gap: 1.1cqw;
 }
-.jennings .photographed-board .score-mini {
+:is(.jennings,.trebek) .photographed-board .score-mini {
   min-width: 0;
   padding: .2cqw .6cqw;
   border-width: 2px;
 }
-.jennings .photographed-board .score-mini .signature { height: 2.5cqw; }
-.jennings .photographed-board .score-mini strong { font-size: clamp(12px, 1.9cqw, 34px); }
+:is(.jennings,.trebek) .photographed-board .score-mini .signature { height: 2.5cqw; }
+:is(.jennings,.trebek) .photographed-board .score-mini strong { font-size: clamp(12px, 1.9cqw, 34px); }
 
-.jennings .photographed-board .category.long-category { font-size: clamp(5px, 1.2cqw, 24px); }
-.jennings .photographed-board .category > span { max-width: 100%; }
+:is(.jennings,.trebek) .photographed-board .category.long-category { font-size: clamp(5px, 1.15cqw, 24px); }
+:is(.jennings,.trebek) .photographed-board .category > span { max-width: 100%; }
 
-.jennings .photographed-board .board > .category { padding-inline: 2%; }
+:is(.jennings,.trebek) .photographed-board .board > .category { padding-inline: 2%; }
 /* Let remote presentations retain the set's ratio on portrait phones too. */
-.jennings .remote-show:has(.photographed-board) {
+:is(.jennings,.trebek) .remote-show:has(.photographed-board) {
   height: auto;
   min-height: 0;
   aspect-ratio: 1768 / 990;
 }
+
+/* Trebek photograph (1311 × 1000), with a separate 120-unit score strip.
+   Cell rectangles are measured against the photo; the bronze frame and its
+   perspective remain in the original picture. */
+.trebek .board-stage .photographed-board {
+  width: min(100cqw, 117.053571cqh);
+  height: min(100cqh, 85.430969cqw);
+  aspect-ratio: 1311 / 1120;
+  background-image: url('/assets/trebek-board-photo.webp');
+  background-position: top center;
+  background-size: 100% 89.285714%;
+}
+.trebek .board-stage .photographed-board > .board {
+  display: block;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 89.285714%;
+}
+.trebek .photographed-board .board > .category,
+.trebek .photographed-board .board > .clue-tile {
+  position: absolute;
+  background-image: url('/assets/trebek-board-photo.webp');
+  background-size: 1008.461538% 1250%;
+  background-position: 57.578323% 27.173913%;
+}
+.trebek .photographed-board .category {
+  font-size: clamp(7px, 1.6cqw, 28px);
+  padding: 3% 3px;
+}
+.trebek .photographed-board .category.long-category { font-size: clamp(6px, 1.3cqw, 24px); }
+.trebek .photographed-board .clue-tile { font-size: clamp(12px, 3.5cqw, 60px); color: #fff3ac; }
+.trebek .photographed-board .clue-tile.used { color: transparent; }
+.trebek .photographed-board > .score-safe { width: 88%; height: 9%; bottom: .8%; }
+.trebek .remote-show:has(.photographed-board) { width: min(100%, 1200px, 78.426339vh); aspect-ratio: 1311 / 1120; }
+.trebek .photographed-board .board > :nth-child(1) { left: 8.543097%; top: 6.400000%; width: 12.890923%; height: 9.300000%; clip-path: polygon(0.0000% 0.0000%, 100.0000% 7.5269%, 98.8166% 100.0000%, 0.5917% 93.5484%); }
+.trebek .photographed-board .board > :nth-child(2) { left: 22.959573%; top: 7.500000%; width: 12.433257%; height: 8.800000%; clip-path: polygon(0.6135% 0.0000%, 99.3865% 5.6818%, 100.0000% 100.0000%, 0.0000% 94.3182%); }
+.trebek .photographed-board .board > :nth-child(3) { left: 36.842105%; top: 8.200000%; width: 12.204424%; height: 8.600000%; clip-path: polygon(0.6250% 0.0000%, 100.0000% 2.3256%, 100.0000% 100.0000%, 0.0000% 94.1860%); }
+.trebek .photographed-board .board > :nth-child(4) { left: 50.495805%; top: 8.300000%; width: 12.128146%; height: 8.700000%; clip-path: polygon(0.6289% 0.0000%, 100.0000% 0.0000%, 100.0000% 100.0000%, 0.0000% 97.7011%); }
+.trebek .photographed-board .board > :nth-child(5) { left: 64.149504%; top: 7.800000%; width: 12.356979%; height: 9.200000%; clip-path: polygon(0.6173% 3.2609%, 100.0000% 0.0000%, 100.0000% 95.6522%, 0.0000% 100.0000%); }
+.trebek .photographed-board .board > :nth-child(6) { left: 77.955759%; top: 6.500000%; width: 12.509535%; height: 9.700000%; clip-path: polygon(0.6098% 11.3402%, 100.0000% 0.0000%, 100.0000% 92.7835%, 0.0000% 100.0000%); }
+.trebek .photographed-board .board > :nth-child(7) { left: 8.543097%; top: 21.400000%; width: 12.967201%; height: 13.300000%;  }
+.trebek .photographed-board .board > :nth-child(8) { left: 22.883295%; top: 21.800000%; width: 12.585812%; height: 13.400000%;  }
+.trebek .photographed-board .board > :nth-child(9) { left: 36.765828%; top: 22.300000%; width: 12.356979%; height: 13.300000%;  }
+.trebek .photographed-board .board > :nth-child(10) { left: 50.343249%; top: 22.400000%; width: 12.433257%; height: 13.400000%;  }
+.trebek .photographed-board .board > :nth-child(11) { left: 64.073227%; top: 22.200000%; width: 12.585812%; height: 13.500000%;  }
+.trebek .photographed-board .board > :nth-child(12) { left: 78.032037%; top: 21.600000%; width: 12.890923%; height: 13.900000%;  }
+.trebek .photographed-board .board > :nth-child(13) { left: 8.314264%; top: 36.100000%; width: 13.104500%; height: 13.500000%;  }
+.trebek .photographed-board .board > :nth-child(14) { left: 22.730740%; top: 36.400000%; width: 12.662090%; height: 13.400000%;  }
+.trebek .photographed-board .board > :nth-child(15) { left: 36.651411%; top: 36.800000%; width: 12.379863%; height: 13.300000%;  }
+.trebek .photographed-board .board > :nth-child(16) { left: 50.228833%; top: 37.000000%; width: 12.471396%; height: 13.300000%;  }
+.trebek .photographed-board .board > :nth-child(17) { left: 63.958810%; top: 36.800000%; width: 12.684973%; height: 13.400000%;  }
+.trebek .photographed-board .board > :nth-child(18) { left: 77.917620%; top: 36.600000%; width: 13.043478%; height: 13.800000%;  }
+.trebek .photographed-board .board > :nth-child(19) { left: 8.085431%; top: 51.200000%; width: 13.241800%; height: 13.100000%;  }
+.trebek .photographed-board .board > :nth-child(20) { left: 22.578185%; top: 51.000000%; width: 12.738368%; height: 13.400000%;  }
+.trebek .photographed-board .board > :nth-child(21) { left: 36.536995%; top: 51.200000%; width: 12.402746%; height: 13.300000%;  }
+.trebek .photographed-board .board > :nth-child(22) { left: 50.114416%; top: 51.400000%; width: 12.509535%; height: 13.300000%;  }
+.trebek .photographed-board .board > :nth-child(23) { left: 63.844394%; top: 51.400000%; width: 12.784134%; height: 13.400000%;  }
+.trebek .photographed-board .board > :nth-child(24) { left: 77.803204%; top: 51.300000%; width: 13.196034%; height: 13.700000%;  }
+.trebek .photographed-board .board > :nth-child(25) { left: 7.856598%; top: 66.000000%; width: 13.379100%; height: 13.500000%;  }
+.trebek .photographed-board .board > :nth-child(26) { left: 22.425629%; top: 65.700000%; width: 12.814645%; height: 13.600000%;  }
+.trebek .photographed-board .board > :nth-child(27) { left: 36.422578%; top: 65.600000%; width: 12.425629%; height: 13.500000%;  }
+.trebek .photographed-board .board > :nth-child(28) { left: 50.000000%; top: 65.600000%; width: 12.547674%; height: 13.600000%;  }
+.trebek .photographed-board .board > :nth-child(29) { left: 63.729977%; top: 65.900000%; width: 12.883295%; height: 13.600000%;  }
+.trebek .photographed-board .board > :nth-child(30) { left: 77.688787%; top: 65.900000%; width: 13.348589%; height: 14.000000%;  }
+.trebek .photographed-board .board > :nth-child(31) { left: 7.627765%; top: 80.600000%; width: 13.516400%; height: 14.000000%;  }
+.trebek .photographed-board .board > :nth-child(32) { left: 22.273074%; top: 80.300000%; width: 12.890923%; height: 13.900000%;  }
+.trebek .photographed-board .board > :nth-child(33) { left: 36.308162%; top: 80.100000%; width: 12.448513%; height: 13.800000%;  }
+.trebek .photographed-board .board > :nth-child(34) { left: 49.885584%; top: 80.100000%; width: 12.585812%; height: 14.000000%;  }
+.trebek .photographed-board .board > :nth-child(35) { left: 63.615561%; top: 80.300000%; width: 12.982456%; height: 14.100000%;  }
+.trebek .photographed-board .board > :nth-child(36) { left: 77.574371%; top: 80.700000%; width: 13.501144%; height: 14.300000%;  }
+.trebek .photographed-board .board > .category,
+.trebek .photographed-board .board > .clue-tile { padding: 2px 4px; }
