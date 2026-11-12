@@ -1,0 +1,599 @@
+{
+  "id": "new-style-pilot-2026-11",
+  "label": "New Style Pilot · Canadian Tilt",
+  "styleVersion": "archive-inspired-v1",
+  "rounds": [
+    {
+      "title": "JEOPARDY!",
+      "categories": [
+        {
+          "name": "RIVERS THROUGH CITIES",
+          "clues": [
+            {
+              "clue": "Big Ben keeps watch beside this river as it winds through London.",
+              "response": "Thames",
+              "aliases": [
+                "River Thames"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "Notre-Dame stands on an island in this river flowing through Paris.",
+              "response": "Seine",
+              "aliases": [
+                "River Seine"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "Québec City overlooks this river, which drains the Great Lakes toward the Atlantic.",
+              "response": "St. Lawrence River",
+              "aliases": [
+                "Saint Lawrence River",
+                "St Lawrence"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "Canada"
+            },
+            {
+              "clue": "Before reaching its Mediterranean delta, this river flows through Cairo.",
+              "response": "Nile",
+              "aliases": [
+                "River Nile"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "Vienna, Bratislava, Budapest and Belgrade all stand beside this European river.",
+              "response": "Danube",
+              "aliases": [
+                "River Danube"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            }
+          ]
+        },
+        {
+          "name": "DOUBLE DUTY",
+          "clues": [
+            {
+              "clue": "One word does double duty for a spotted big cat and a British luxury car brand.",
+              "response": "jaguar",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "This flightless New Zealand bird shares its name with a fuzzy brown fruit.",
+              "response": "kiwi",
+              "aliases": [
+                "kiwifruit"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "Spelled the same but pronounced differently: a freshwater fish and the lowest male singing voice.",
+              "response": "bass",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "It can lift steel beams on a building site or wade through wetlands on long legs.",
+              "response": "crane",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "This flatfish shares its name with the underside of your shoe.",
+              "response": "sole",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            }
+          ],
+          "intro": "Each response is one word with two meanings."
+        },
+        {
+          "name": "THE CANADIAN PLAYLIST",
+          "clues": [
+            {
+              "clue": "Her heart went on in the theme from Titanic; this Québec singer also recorded The Power of Love.",
+              "response": "Céline Dion",
+              "aliases": [
+                "Celine Dion",
+                "Dion"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "Canada"
+            },
+            {
+              "clue": "This Kingston band, fronted by Gord Downie, gave us Bobcaygeon and Ahead by a Century.",
+              "response": "The Tragically Hip",
+              "aliases": [
+                "Tragically Hip",
+                "the Hip"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "Canada"
+            },
+            {
+              "clue": "In Summer of ’69, this singer looked back on youthful dreams of rock stardom.",
+              "response": "Bryan Adams",
+              "aliases": [
+                "Adams"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "Canada"
+            },
+            {
+              "clue": "This singer-songwriter turned a parking lot and a tree museum into an environmental lament in Big Yellow Taxi.",
+              "response": "Joni Mitchell",
+              "aliases": [
+                "Mitchell"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "Canada"
+            },
+            {
+              "clue": "This Montréal songwriter gave Hallelujah its start long before Jeff Buckley recorded it.",
+              "response": "Leonard Cohen",
+              "aliases": [
+                "Cohen"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "Canada"
+            }
+          ]
+        },
+        {
+          "name": "PAGE TO SCREEN",
+          "clues": [
+            {
+              "clue": "From Michael Bond’s books to the movies, this bear arrives from darkest Peru with a taste for marmalade.",
+              "response": "Paddington",
+              "aliases": [
+                "Paddington Bear"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "Suzanne Collins sent Katniss Everdeen into the arena in this novel, later filmed with Jennifer Lawrence.",
+              "response": "The Hunger Games",
+              "aliases": [
+                "Hunger Games"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "US"
+            },
+            {
+              "clue": "Stanley Kubrick turned Stephen King’s tale of the Overlook Hotel into this 1980 film.",
+              "response": "The Shining",
+              "aliases": [
+                "Shining"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "US"
+            },
+            {
+              "clue": "Yann Martel’s novel about a boy sharing a lifeboat with a tiger became this Ang Lee film.",
+              "response": "Life of Pi",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "Canada"
+            },
+            {
+              "clue": "Matt Damon played Patricia Highsmith’s identity-stealing Tom in the 1999 film of this novel.",
+              "response": "The Talented Mr. Ripley",
+              "aliases": [
+                "The Talented Mister Ripley",
+                "Talented Mr Ripley"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "US"
+            }
+          ]
+        },
+        {
+          "name": "SCIENCE IN PLAIN SIGHT",
+          "clues": [
+            {
+              "clue": "A triangular glass one splits white light into a spectrum of colours.",
+              "response": "prism",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "Water droplets on the outside of a cold glass form by this change from gas to liquid.",
+              "response": "condensation",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "Charged particles from the Sun help produce these shimmering polar lights.",
+              "response": "aurora",
+              "aliases": [
+                "auroras",
+                "aurora borealis",
+                "northern lights",
+                "aurora australis"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "This property of a liquid’s surface lets a water strider stay above the water.",
+              "response": "surface tension",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "A straw seems bent at the waterline because light changes direction through this optical process.",
+              "response": "refraction",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            }
+          ]
+        },
+        {
+          "name": "STARTS WITH “SN”",
+          "clues": [
+            {
+              "clue": "These white flakes fall when ice crystals grow in clouds.",
+              "response": "snow",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "A cobra or python is one of these legless reptiles.",
+              "response": "snake",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "A swimmer breathes through this tube while floating face-down near the surface.",
+              "response": "snorkel",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "Wires stretched beneath this drum give it the crisp rattle heard in a marching band.",
+              "response": "snare",
+              "aliases": [
+                "snare drum"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "Brandy is often served in this short-stemmed glass with a bowl wider than its mouth.",
+              "response": "snifter",
+              "aliases": [
+                "brandy snifter"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            }
+          ],
+          "intro": "Every response begins with the letters S N."
+        }
+      ],
+      "dailyDoubles": [
+        [
+          4,
+          3
+        ]
+      ]
+    },
+    {
+      "title": "DOUBLE JEOPARDY!",
+      "categories": [
+        {
+          "name": "AFTER THE DUST SETTLED",
+          "clues": [
+            {
+              "clue": "Signed in 1919, this treaty imposed peace terms on Germany after the First World War.",
+              "response": "Treaty of Versailles",
+              "aliases": [
+                "Versailles Treaty"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "After its conquest in 1453, this former Byzantine capital became the seat of the Ottoman Empire.",
+              "response": "Constantinople",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "After 27 years in prison, he became South Africa’s first Black president in 1994.",
+              "response": "Nelson Mandela",
+              "aliases": [
+                "Mandela"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "The Tokugawa shogunate gave way to imperial rule in 1868 in this Japanese restoration.",
+              "response": "Meiji Restoration",
+              "aliases": [
+                "Meiji"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "James II lost his throne to William and Mary in this revolution of 1688.",
+              "response": "Glorious Revolution",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            }
+          ]
+        },
+        {
+          "name": "CANVAS & COLOUR",
+          "clues": [
+            {
+              "clue": "Water lilies in his garden at Giverny kept this French Impressionist busy with brush and canvas.",
+              "response": "Claude Monet",
+              "aliases": [
+                "Monet"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "Big Raven and towering West Coast forests are subjects associated with this British Columbia painter.",
+              "response": "Emily Carr",
+              "aliases": [
+                "Carr"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "Canada"
+            },
+            {
+              "clue": "In this wall-painting technique, pigment is applied to wet plaster.",
+              "response": "fresco",
+              "aliases": [
+                "buon fresco"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "From Italian for light and dark, this term describes strong contrasts between the two in a painting.",
+              "response": "chiaroscuro",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "Ground into natural ultramarine, this deep-blue stone once made painters’ pigments exceptionally costly.",
+              "response": "lapis lazuli",
+              "aliases": [
+                "lapis"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            }
+          ]
+        },
+        {
+          "name": "BEFORE & AFTER",
+          "clues": [
+            {
+              "clue": "A carrot-chomping cartoon rabbit hops onto a gentle ski run for beginners.",
+              "response": "Bugs Bunny slope",
+              "aliases": [],
+              "mechanicProof": "Bugs Bunny || bunny slope || Bunny",
+              "geographicFocus": "US"
+            },
+            {
+              "clue": "Simba’s Disney musical meets a large crustacean prized for its legs.",
+              "response": "The Lion King crab",
+              "aliases": [
+                "Lion King crab"
+              ],
+              "mechanicProof": "The Lion King || king crab || King",
+              "geographicFocus": "US"
+            },
+            {
+              "clue": "Australia’s vast coral formation gets tied to a sailor’s square knot.",
+              "response": "Great Barrier Reef knot",
+              "aliases": [
+                "the Great Barrier Reef knot"
+              ],
+              "mechanicProof": "Great Barrier Reef || reef knot || Reef",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "E.B. White’s tale of Wilbur and a spider opens software such as Firefox.",
+              "response": "Charlotte’s Web browser",
+              "aliases": [
+                "Charlotte's Web browser"
+              ],
+              "mechanicProof": "Charlotte's Web || web browser || Web",
+              "geographicFocus": "US"
+            },
+            {
+              "clue": "The decades-long U.S.–Soviet standoff opens a Tolstoy epic about the Napoleonic era.",
+              "response": "Cold War and Peace",
+              "aliases": [],
+              "mechanicProof": "Cold War || War and Peace || War",
+              "geographicFocus": "general"
+            }
+          ],
+          "intro": "Join two answers using their shared word just once."
+        },
+        {
+          "name": "SMALL COUNTRIES, BIG CLUES",
+          "clues": [
+            {
+              "clue": "Monte Carlo’s casino and a Formula One street circuit help put this tiny principality on the map.",
+              "response": "Monaco",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "The Merlion, part fish and part big cat, is a symbol of this Southeast Asian city-state.",
+              "response": "Singapore",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "This Pyrenean principality lies between France and Spain; its capital adds la Vella to the country’s name.",
+              "response": "Andorra",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "Vaduz is the capital of this doubly landlocked principality between Switzerland and Austria.",
+              "response": "Liechtenstein",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "Completely surrounded by Italy, this republic takes its name from a saint and has its capital on Mount Titano.",
+              "response": "San Marino",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            }
+          ]
+        },
+        {
+          "name": "WHO’S TELLING THE STORY?",
+          "clues": [
+            {
+              "clue": "This doctor narrates most of the Sherlock Holmes stories as the detective’s friend and companion.",
+              "response": "Dr. Watson",
+              "aliases": [
+                "John Watson",
+                "Doctor Watson",
+                "Watson"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "Known by this childhood nickname, Jean Louise narrates To Kill a Mockingbird.",
+              "response": "Scout",
+              "aliases": [
+                "Scout Finch"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "US"
+            },
+            {
+              "clue": "He rents a house in West Egg and narrates his neighbour’s parties in The Great Gatsby.",
+              "response": "Nick Carraway",
+              "aliases": [
+                "Carraway"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "US"
+            },
+            {
+              "clue": "Her assigned name marks her as belonging to Fred in Margaret Atwood’s The Handmaid’s Tale.",
+              "response": "Offred",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "Canada"
+            },
+            {
+              "clue": "This narrator survives the Pequod’s destruction by clinging to Queequeg’s coffin in Moby-Dick.",
+              "response": "Ishmael",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "US"
+            }
+          ]
+        },
+        {
+          "name": "ELEMENTARY SYMBOLS",
+          "clues": [
+            {
+              "clue": "Na is the symbol for this metal, one of the two elements in ordinary table salt.",
+              "response": "sodium",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "Diamonds and graphite are different forms of this element, symbol C.",
+              "response": "carbon",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "Named for the Sun, this element with symbol He was detected in its spectrum before being found on Earth.",
+              "response": "helium",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "Argentum gives this precious metal its symbol, Ag.",
+              "response": "silver",
+              "aliases": [],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            },
+            {
+              "clue": "This metal’s symbol is W; its extremely high melting point made it ideal for incandescent light-bulb filaments.",
+              "response": "tungsten",
+              "aliases": [
+                "wolfram"
+              ],
+              "mechanicProof": "standard",
+              "geographicFocus": "general"
+            }
+          ]
+        }
+      ],
+      "dailyDoubles": [
+        [
+          0,
+          3
+        ],
+        [
+          3,
+          4
+        ]
+      ]
+    }
+  ],
+  "final": {
+    "category": "WORLD EXPLORERS",
+    "clue": "In 1911 he reached one pole; in 1906 he had completed the first voyage through the Northwest Passage.",
+    "response": "Roald Amundsen",
+    "aliases": [
+      "Amundsen"
+    ],
+    "mechanicProof": "standard",
+    "geographicFocus": "Canada"
+  }
+}

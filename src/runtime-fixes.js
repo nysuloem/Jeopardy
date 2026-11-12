@@ -1,9 +1,7 @@
 'use strict';
 
-// This module is loaded by src/start.js after its generation-source patch has
-// been applied. It keeps harmless orthographic answer variants fair. The
-// game-bank generation/repair throttle is intentionally disabled for now so we
-// can validate the protected repair mechanism and refill the bank to 20 games.
+// Harmless orthographic variants are accepted before normal answer judging.
+// Board generation budgets and opt-in refill are enforced separately.
 const game = require('./game');
 
 function orthographicKey(value = '') {
@@ -33,4 +31,4 @@ game.judge = async function patchedJudge(given, item) {
   return originalJudge(given, item);
 };
 
-console.log('[runtime-fixes] orthographic judging enabled; game-bank generation/repair cap disabled');
+console.log('[runtime-fixes] orthographic judging enabled; generation budgets enforced in game.js');
