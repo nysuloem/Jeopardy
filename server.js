@@ -8,6 +8,8 @@ const {Server}=require('socket.io');
 const QRCode=require('qrcode');
 const {FALLBACK_GAME,EMERGENCY_GAME,normalize,clueFingerprint,gameClueRecords,gameHasCategoryRepeat,gameHasDuplicate,validateGame,generatedGameIssues,repairGeneratedGame,generateGame,generateFinalClue,judge,judgeResponse}=require('./src/game');
 
+const {isLegacyStoredGame,validateStoredGame,storedGameHasDuplicate}=require('./src/stored-bank-policy');
+
 const PILOT_GAME=require('./content/new-style-pilot.json');
 if(!validateGame(PILOT_GAME))throw new Error('The new-style pilot board is invalid.');
 
@@ -56,16 +58,34 @@ function saveBankSync(){atomicJsonSync(bankPath,{version:GAME_BANK_VERSION,games
 function saveLedgerSync(){atomicJsonSync(ledgerPath,clueLedger);}
 function allKnownRecords(){return [...clueLedger.entries,...gameBank.flatMap(gameClueRecords)];}
 function allKnownCategories(){return [...new Set(allKnownRecords().map(record=>record.category).filter(Boolean))];}
-function reserveGame(game){if(!validateGame(game))throw new Error('This game contains an invalid category or incomplete clue.');if(gameHasDuplicate(game,clueLedger.entries))throw new Error('This game overlaps the permanent clue ledger.');clueLedger.entries.push(...gameClueRecords(game).map(x=>({...x,reservedAt:new Date().toISOString()})));saveLedgerSync();}
+function reserveGame(game){if(!validateStoredGame(game))throw new Error('This game contains an invalid category or incomplete clue.');if(storedGameHasDuplicate(game,clueLedger.entries))throw new Error('This game overlaps the permanent clue ledger.');clueLedger.entries.push(...gameClueRecords(game).map(x=>({...x,reservedAt:new Date().toISOString()})));saveLedgerSync();}
 function finalRecord(item){return {clue:item.clue,response:item.response,category:item.category,fingerprint:clueFingerprint(item.clue),factFingerprint:`${clueFingerprint(item.category)}|${clueFingerprint(item.response)}`};}
 function reserveFinal(item){const record=finalRecord(item);if(!record.fingerprint||gameHasDuplicate({rounds:[],final:item},clueLedger.entries)||gameHasCategoryRepeat({rounds:[],final:item},clueLedger.entries.map(x=>x.category)))throw new Error('That Final Jeopardy clue or category overlaps the permanent ledger.');clueLedger.entries.push({...record,reservedAt:new Date().toISOString(),source:'final-test'});saveLedgerSync();}
 async function takeFreshFinal(){let lastError;for(let attempt=0;attempt<3;attempt++)try{const known=allKnownRecords(),item=await generateFinalClue(known.map(x=>x.clue),allKnownCategories());if(!gameHasDuplicate({rounds:[],final:item},known)&&!gameHasCategoryRepeat({rounds:[],final:item},allKnownCategories())){reserveFinal(item);return item;}lastError=new Error('OpenAI repeated a prior clue or category.');}catch(error){lastError=error;}throw new Error(`${lastError?.message||'OpenAI could not prepare a clue.'} Please try the Final Jeopardy test again.`);}
 function availableBuiltIn(){return [FALLBACK_GAME,EMERGENCY_GAME].find(game=>!gameHasDuplicate(game,clueLedger.entries));}
 function takeGame(){if(process.env.NODE_ENV==='test'&&!gameBank.length)return FALLBACK_GAME;if(gameBank.length){const game=gameBank[0];reserveGame(game);gameBank.shift();try{saveBankSync();}catch(error){console.error('The clue ledger was saved, but the game bank could not be updated:',error);gameBank=[];}return game;}const builtIn=availableBuiltIn();if(builtIn){reserveGame(builtIn);return builtIn;}if(process.env.OPENAI_API_KEY)throw new Error('The unique question bank is still being prepared. Please try again shortly.');throw new Error('No unused game is available. Configure OpenAI to generate another board.');}
-function classifySavedBank(games,priorRecords=[]){const ready=[],repairQueue=[];for(const game of games){const prior=[...priorRecords,...ready.flatMap(gameClueRecords)],categories=prior.map(x=>x.category);if(validateGame(game)&&!gameHasDuplicate(game,prior)&&!gameHasCategoryRepeat(game,categories))ready.push(game);else repairQueue.push(game);}return {ready,repairQueue};}
+function classifySavedBank(games,priorRecords=[],onAudit=()=>{}){
+  const ready=[],repairQueue=[];
+  for(const [index,game] of games.entries()){
+    const prior=[...priorRecords,...ready.flatMap(gameClueRecords)],valid=validateStoredGame(game),duplicate=storedGameHasDuplicate(game,prior);
+    if(valid&&!duplicate){
+      ready.push(game);
+      if(isLegacyStoredGame(game)){
+        const currentValid=validateGame(game),currentDuplicate=gameHasDuplicate(game,prior);
+        if(!currentValid||currentDuplicate)onAudit({board:index+1,action:'restored-under-original-policy',newMechanicValidation:!currentValid,approximateDuplicateCheck:currentDuplicate,mechanicIssues:currentValid?[]:generatedGameIssues(game,[],[]).map(issue=>issue.reason)});
+      }
+    }else{
+      repairQueue.push(game);
+      onAudit({board:index+1,action:'kept-in-repair-queue',invalid:!valid,duplicate});
+    }
+  }
+  return {ready,repairQueue};
+}
 const migratedFingerprints=new Set(clueLedger.entries.map(x=>x.fingerprint));for(const oldClue of history.usedClues||[]){const fingerprint=clueFingerprint(oldClue);if(fingerprint&&!migratedFingerprints.has(fingerprint)){migratedFingerprints.add(fingerprint);clueLedger.entries.push({clue:oldClue,response:'',category:'',fingerprint,factFingerprint:'',reservedAt:'history-migration'});}}
 if(!clueLedger.entries.length){clueLedger.entries.push(...gameClueRecords(FALLBACK_GAME).map(x=>({...x,reservedAt:'legacy-first-game-migration'})));}
-({ready:gameBank,repairQueue:gameBankRepairQueue}=classifySavedBank(loadedBankGames,clueLedger.entries));loadedBankGames=[];saveBankSync();saveLedgerSync();
+// Keep the pre-recovery bank intact before its first compatible reclassification.
+if(fs.existsSync(bankPath)&&!fs.existsSync(`${bankPath}.pre-policy-recovery-20261112`))fs.copyFileSync(bankPath,`${bankPath}.pre-policy-recovery-20261112`);
+({ready:gameBank,repairQueue:gameBankRepairQueue}=classifySavedBank(loadedBankGames,clueLedger.entries,audit=>console.log('[game-bank-policy]',JSON.stringify(audit))));loadedBankGames=[];saveBankSync();saveLedgerSync();
 async function ensureGameBank(target=GAME_BANK_TARGET){if(!GAME_BANK_AUTO_FILL||bankGenerating||!process.env.OPENAI_API_KEY||gameBank.length>=target&&!gameBankRepairQueue.length)return;clearTimeout(bankRetryTimer);bankRetryTimer=null;bankGenerating=true;bankBuildCompleted=0;try{while(gameBankRepairQueue.length){const known=allKnownRecords(),categories=allKnownCategories(),candidate=structuredClone(gameBankRepairQueue[0]),issues=generatedGameIssues(candidate,known,categories);bankLastError=`Repairing ${issues.length} issue${issues.length===1?'':'s'} in an existing saved board.`;const repaired=await repairGeneratedGame(candidate,known,categories);if(!validateGame(repaired)||gameHasDuplicate(repaired,known)||gameHasCategoryRepeat(repaired,categories))throw new Error('A saved game still failed validation after targeted repair.');gameBankRepairQueue.shift();gameBank.push(repaired);bankLastError=null;saveBankSync();for(const room of rooms.values())if(room.phase==='lobby'){room.generating=true;room.bankReady=gameBank.length;room.message=`${gameBank.length} games ready; ${gameBankRepairQueue.length} saved boards still being repaired.`;emit(room);}}let built=0;while(gameBank.length<target&&built<1){const known=allKnownRecords(),categories=allKnownCategories();let candidate;try{candidate=await generateGame(known,categories,(completed,total)=>{bankBuildCompleted=completed;bankBuildTotal=total;});}catch(error){throw error;}if(gameHasDuplicate(candidate,known)||gameHasCategoryRepeat(candidate,categories)){throw new Error('Generated board repeated a stored clue or category; generation stopped.');}gameBank.push(candidate);built++;bankBuildCompleted=0;bankLastError=null;saveBankSync();for(const room of rooms.values())if(room.phase==='lobby'){room.generating=gameBank.length<target;room.bankReady=gameBank.length;room.message=`${gameBank.length} of ${target} games ready.`;emit(room);}}}catch(error){if(error?.salvageGame){try{gameBankRepairQueue.push(error.salvageGame);saveBankSync();console.warn('[game-bank] saved failed full board to durable repair queue; paid-for clues will be reused.');}catch(saveError){console.error('[game-bank] could not persist salvage board:',saveError);}}bankLastError=String(error.message||error).slice(0,1000);console.warn('Question bank generation paused:',bankLastError);/* Stay paused after an error; no automatic retry. */}finally{bankGenerating=false;}}
 function playerKey(name){return normalize(name);}
 function firstName(player){return String(player?.name||'Contestant').trim().split(/\s+/)[0]||'Contestant';}
