@@ -142,9 +142,9 @@ test('landing screen shows and refreshes game-board availability',()=>{
   assert.match(client,/setInterval\(refreshBankStatus,10000\)/);
   assert.match(client,/building part \$\{bank\.buildCompleted\+1\} of \$\{bank\.buildTotal\}/);
   assert.match(client,/repairing \$\{bank\.repairQueued\} saved board/);
-  assert.match(client,/host\.disabled=!bank\.playableNow/);
+  assert.match(client,/host\.disabled=!playable/);
   assert.match(client,/id="remote">Remote Play/);
-  assert.match(client,/remote\.disabled=!bank\.playableNow/);
+  assert.match(client,/remote\.disabled=!playable/);
   assert.match(client,/remoteMode/);
   assert.match(client,/id="testJudging">Run Judging Check/);
   assert.match(client,/fetch\('\/api\/judging-diagnostics'/);
@@ -235,4 +235,26 @@ test('an unanswered Final Jeopardy response remains visually blank',async()=>{
 test('Final Jeopardy reveals the correct response aloud when everyone misses',()=>{
   const room=makeRoom();room.phase='final_reveal';room.players=[{id:'only',name:'Only',key:'only',score:1000,preFinalScore:1000,finalWager:500,finalAnswer:'Wrong',finalCorrect:false}];room.finalOrder=['only'];room.finalRevealIndex=0;room.finalRevealStep='show_wager';
   advanceFinalReveal(room);assert.equal(room.phase,'final_correct_answer');assert.equal(publicRoom(room).game.final.response,room.game.final.response);dispose(room);
+});
+
+test('pilot can be selected over sockets in both play modes without consuming the original bank',async t=>{
+  const pilot=require('../content/new-style-pilot.json'),before=await (await fetch(`${url}/api/game-bank`)).json(),beforeHistory=await (await fetch(`${url}/api/history`)).json();
+  let reservedAfterFirst;
+  for(const remoteMode of [false,true]){
+    const creator=await client();t.after(()=>creator.disconnect());
+    const created=await creator.emitWithAck('createRoom',{boardId:pilot.id,remoteMode});
+    assert.equal(created.ok,true);const room=rooms.get(created.code);t.after(()=>dispose(room));
+    assert.equal(room.pilot,true);assert.equal(room.testMode,true);assert.equal(room.remoteMode,remoteMode);
+    assert.deepEqual(room.game,pilot);assert.equal(room.generated,false);assert.equal(room.generating,false);
+    const hidden=publicRoom(room);assert.equal(hidden.game.rounds[0].categories[0].clues[0].clue,null);assert.equal(hidden.game.final.response,null);
+    assert.equal(hidden.game.rounds[0].categories[1].intro,pilot.rounds[0].categories[1].intro);
+    assert.equal((await creator.emitWithAck('joinRoom',{code:room.code,name:'Pilot tester',occupation:'teacher',location:'Toronto',signature:'data:image/png;base64,AAAA',photo:'data:image/jpeg;base64,AAAA'})).ok,true);
+    assert.equal((await creator.emitWithAck('startGame',{code:room.code})).ok,true);assert.equal(room.phase,'intro');
+    room.players[0].score=2800;await finishGame(room);assert.equal(room.phase,'final_results');assert.equal(room.players[0].score,2800);
+    const after=await (await fetch(`${url}/api/game-bank`)).json();assert.equal(after.ready,before.ready);assert.equal(after.autoFill,false);
+    if(reservedAfterFirst!==undefined)assert.equal(after.reservedClues,reservedAfterFirst);reservedAfterFirst=after.reservedClues;
+  }
+  assert.deepEqual(await (await fetch(`${url}/api/history`)).json(),beforeHistory);
+  const creator=await client();t.after(()=>creator.disconnect());
+  const invalid=await creator.emitWithAck('createRoom',{boardId:'unknown-board'});assert.equal(invalid.ok,false);
 });

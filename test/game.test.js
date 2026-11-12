@@ -1,6 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {FALLBACK_GAME,EMERGENCY_GAME,MAX_CLUE_CHARS,validateGame,locallyCorrect,plausibleVariant,locallyNeedsMoreSpecific,normalize,responseText,gameClueRecords,gameCategories,gameHasCategoryRepeat,gameHasCategoryOverlap,gameHasResponseRepeat,gameHasDuplicate,beforeAfterValid,clueDoesNotRevealResponse,generatedGameIssues,generateGame,judgeResponse,judge}=require('../src/game');
+const {FALLBACK_GAME,EMERGENCY_GAME,MAX_CLUE_CHARS,MAX_CLUE_WORDS,validateGame,locallyCorrect,plausibleVariant,locallyNeedsMoreSpecific,normalize,responseText,gameClueRecords,gameCategories,gameHasCategoryRepeat,gameHasCategoryOverlap,gameHasResponseRepeat,gameHasDuplicate,beforeAfterValid,clueDoesNotRevealResponse,generatedGameIssues,generateGame,judgeResponse,judge}=require('../src/game');
 
 test('fallback game is a complete two-round Jeopardy game',()=>{
   assert.equal(validateGame(FALLBACK_GAME),true);
@@ -30,17 +30,17 @@ test('duplicate protection catches repeated clues and repeated facts',()=>{
   assert.equal(gameHasDuplicate(changed,[records[0]]),true);
 });
 
-test('category protection rejects repeated titles within and across generated games',()=>{
+test('category titles can recur across games but remain distinct within a game',()=>{
   assert.equal(gameCategories(FALLBACK_GAME).length,13);
   assert.equal(gameHasCategoryRepeat(FALLBACK_GAME,[]),false);
-  assert.equal(gameHasCategoryRepeat(FALLBACK_GAME,['CANADIAN PLACES']),true);
+  assert.equal(gameHasCategoryRepeat(FALLBACK_GAME,['CANADIAN PLACES']),false);
   const repeated=structuredClone(FALLBACK_GAME);repeated.rounds[1].categories[0].name=repeated.rounds[0].categories[0].name;
   assert.equal(validateGame(repeated),false);
 });
 
-test('category and response protection reject overlap anywhere on one board',()=>{
+test('shared category words are advisory while repeated board responses are blocking',()=>{
   const overlapping=structuredClone(FALLBACK_GAME);overlapping.rounds[0].categories[0].name='OCEAN GIANTS';overlapping.rounds[1].categories[0].name='ANIMAL GIANTS';
-  assert.equal(gameHasCategoryOverlap(overlapping),true);assert.equal(validateGame(overlapping),false);
+  assert.equal(gameHasCategoryOverlap(overlapping),true);assert.equal(validateGame(overlapping),true);
   const repeatedResponse=structuredClone(FALLBACK_GAME);repeatedResponse.rounds[1].categories[0].clues[0].response=repeatedResponse.rounds[0].categories[0].clues[0].response;
   assert.equal(gameHasResponseRepeat(repeatedResponse),true);assert.equal(validateGame(repeatedResponse),false);
 });
@@ -51,11 +51,25 @@ test('validation identifies individual bad clues without condemning valid board 
   assert.deepEqual(issues,[{kind:'clue',round:0,category:0,clue:0,reason:'clue reveals response'}]);
 });
 
-test('generation retries only a failed category and retains accepted categories',async t=>{
-  const originalKey=process.env.OPENAI_API_KEY,originalFetch=global.fetch,categories=FALLBACK_GAME.rounds.flatMap(round=>round.categories).map(category=>structuredClone(category)),progress=[];process.env.OPENAI_API_KEY='test-key';let calls=0,categoryCalls=0;
-  global.fetch=async(_url,options)=>{calls++;const request=JSON.parse(options.body),name=request.text.format.name;if(name==='final_jeopardy_clue')return {ok:true,json:async()=>({output_text:JSON.stringify(FALLBACK_GAME.final)})};assert.equal(name,'jeopardy_category');assert.equal(request.reasoning.effort,'low');assert.equal(request.max_output_tokens,3500);const index=Math.max(0,categoryCalls-1),category=structuredClone(categories[index]);if(categoryCalls++===0)category.clues[0]={clue:'Toronto is the response to this clue.',response:'Toronto',aliases:['Toronto'],mechanicProof:'standard'};return {ok:true,json:async()=>({output_text:JSON.stringify(category)})};};
+test('generation plans the mix and repairs one bad clue without replacing accepted categories',async t=>{
+  const originalKey=process.env.OPENAI_API_KEY,originalFetch=global.fetch,categories=FALLBACK_GAME.rounds.flatMap(round=>round.categories).map(category=>structuredClone(category)),progress=[];
+  process.env.OPENAI_API_KEY='test-key';let calls=0,categoryCalls=0,repairCalls=0;
+  global.fetch=async(_url,options)=>{
+    calls++;const request=JSON.parse(options.body),name=request.text.format.name;
+    if(name==='final_jeopardy_clue')return {ok:true,json:async()=>({output_text:JSON.stringify(FALLBACK_GAME.final)})};
+    if(name==='jeopardy_clue_repairs'){
+      repairCalls++;const input=JSON.parse(request.input);assert.equal(input.requests.length,1);assert.equal(input.requests[0].id,'0:0:0');
+      return {ok:true,json:async()=>({output_text:JSON.stringify({repairs:[{...categories[0].clues[0],id:'0:0:0'}]})})};
+    }
+    assert.equal(name,'jeopardy_category');assert.equal(request.reasoning.effort,'low');assert.ok(JSON.parse(request.input).categoryPlan);assert.match(request.instructions,/Canadian household/);
+    const index=categoryCalls++,category=structuredClone(categories[index]);
+    if(index===0)category.clues[0]={clue:'Toronto is the response to this clue.',response:'Toronto',aliases:['Toronto'],mechanicProof:'standard'};
+    return {ok:true,json:async()=>({output_text:JSON.stringify(category)})};
+  };
   t.after(()=>{if(originalKey===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=originalKey;global.fetch=originalFetch;});
-  const game=await generateGame([],[],(completed,total)=>progress.push([completed,total]));assert.equal(calls,14);assert.equal(categoryCalls,13);assert.deepEqual(game.rounds[0].categories[0],categories[0]);assert.deepEqual(game.rounds[1].categories[5],categories[11]);assert.equal(validateGame(game),true);assert.deepEqual(progress.at(-1),[13,13]);
+  const game=await generateGame([],[],(completed,total)=>progress.push([completed,total]));
+  assert.equal(calls,14);assert.equal(categoryCalls,12);assert.equal(repairCalls,1);
+  assert.deepEqual(game.rounds[0].categories[0],categories[0]);assert.deepEqual(game.rounds[1].categories[5],categories[11]);assert.equal(validateGame(game),true);assert.deepEqual(progress.at(-1),[13,13]);
 });
 
 test('emergency game is complete and does not overlap the original board',()=>{
@@ -79,7 +93,7 @@ test('Before & After requires two answers with one exact shared bridge',()=>{
 
 test('oversized clues are rejected instead of being squeezed onto the TV',()=>{
   const longRound=structuredClone(FALLBACK_GAME);longRound.rounds[0].categories[0].clues[0].clue='x'.repeat(MAX_CLUE_CHARS+1);assert.equal(validateGame(longRound),false);
-  const longFinal=structuredClone(FALLBACK_GAME);longFinal.final.clue=Array.from({length:25},()=> 'short').join(' ');assert.equal(validateGame(longFinal),false);
+  const longFinal=structuredClone(FALLBACK_GAME);longFinal.final.clue=Array.from({length:MAX_CLUE_WORDS+1},()=> 'a').join(' ');assert.equal(validateGame(longFinal),false);
 });
 
 test('clues cannot reveal their own response or a distinctive response root',()=>{
