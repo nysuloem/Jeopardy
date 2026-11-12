@@ -1,0 +1,138 @@
+/* Supplied Jennings stage photograph, 1768 × 990. Keep one aspect ratio for
+   both the photograph and the live overlays, including remote-play embeds. */
+.jennings .board-stage {
+  container-type: size;
+  padding: 0;
+  background: #02040b;
+}
+.jennings .board-stage .photographed-board {
+  position: relative;
+  container-type: inline-size;
+  width: min(100cqw, 178.585859cqh);
+  height: min(100cqh, 55.995475cqw);
+  max-height: none;
+  aspect-ratio: 1768 / 990;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: url('/assets/jennings-board-photo.webp') center / 100% 100% no-repeat;
+}
+.jennings .board-stage .photographed-board > .board {
+  position: absolute;
+  left: 17.364253%;
+  top: 19.191919%;
+  width: 64.649321%;
+  height: 67.171717%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  grid-template-columns: 184fr 184fr 185fr 184fr 185fr 186fr;
+  grid-template-rows: 103fr 16fr 104fr 7fr 104fr 7fr 104fr 6fr 104fr 6fr 104fr;
+  gap: 0;
+  column-gap: .612423447%;
+}
+.jennings .photographed-board .board > :nth-child(n+7):nth-child(-n+12) { grid-row: 3; }
+.jennings .photographed-board .board > :nth-child(n+13):nth-child(-n+18) { grid-row: 5; }
+.jennings .photographed-board .board > :nth-child(n+19):nth-child(-n+24) { grid-row: 7; }
+.jennings .photographed-board .board > :nth-child(n+25):nth-child(-n+30) { grid-row: 9; }
+.jennings .photographed-board .board > :nth-child(n+31):nth-child(-n+36) { grid-row: 11; }
+/* Reuse a clean blue patch from this same photograph as each screen's opaque
+   background. It covers every printed title/value without editing the image.
+   This mask stays full size during the category/value reveal animations. */
+.jennings .photographed-board .board > .category,
+.jennings .photographed-board .board > .clue-tile {
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 2px 4%;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background-image: url('/assets/jennings-board-photo.webp');
+  background-repeat: no-repeat;
+  background-size: 993.258427% 1010.204082%;
+  background-position: 19.496855% 47.421525%;
+  transform: none;
+  filter: none;
+  overflow: hidden;
+}
+.jennings .photographed-board .category {
+  grid-row: 1;
+  font: 900 clamp(5px, 1.45cqw, 30px)/1.02 Impact, 'Arial Narrow', sans-serif;
+  color: #fff;
+  text-shadow: 1px 2px 1px #000;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.jennings .photographed-board .clue-tile {
+  font: 900 clamp(10px, 3.8cqw, 70px)/1 Impact, 'Arial Narrow', sans-serif;
+  letter-spacing: -.025em;
+  color: #efb350;
+  text-shadow: 1px 1px #ffd88a, 3px 3px 1px #190f08;
+}
+.jennings .photographed-board .clue-tile > span {
+  display: block;
+  width: max-content;
+  white-space: nowrap;
+  transform: scaleX(.76);
+}
+.jennings .photographed-board .clue-tile.used {
+  color: transparent;
+  text-shadow: none;
+}
+.jennings .photographed-board .intro-value,
+.jennings .photographed-board .intro-value.revealed {
+  transform: none;
+  filter: none;
+  animation: none;
+}
+.jennings .photographed-board .intro-value > span {
+  opacity: 0;
+  transform: scaleX(.76) scale(.82);
+  transition: opacity .12s ease, transform .16s ease;
+}
+.jennings .photographed-board .intro-value.revealed > span {
+  opacity: 1;
+  transform: scaleX(.76);
+}
+.jennings .photographed-board .board > .selected-clue {
+  border: 0 !important;
+  outline: 3px solid #fff27a;
+  outline-offset: -3px;
+  transform: none;
+  animation: photographedSelection .42s infinite alternate;
+}
+@keyframes photographedSelection {
+  from { filter: brightness(1); }
+  to { filter: brightness(1.6); }
+}
+.jennings .photographed-board > .score-safe {
+  bottom: 1.2%;
+  width: 60%;
+  height: 9.8%;
+  gap: 1.1cqw;
+}
+.jennings .photographed-board .score-mini {
+  min-width: 0;
+  padding: .2cqw .6cqw;
+  border-width: 2px;
+}
+.jennings .photographed-board .score-mini .signature { height: 2.5cqw; }
+.jennings .photographed-board .score-mini strong { font-size: clamp(12px, 1.9cqw, 34px); }
+
+.jennings .photographed-board .category.long-category { font-size: clamp(5px, 1.2cqw, 24px); }
+.jennings .photographed-board .category > span { max-width: 100%; }
+
+.jennings .photographed-board .board > .category { padding-inline: 2%; }
+/* Let remote presentations retain the set's ratio on portrait phones too. */
+.jennings .remote-show:has(.photographed-board) {
+  height: auto;
+  min-height: 0;
+  aspect-ratio: 1768 / 990;
+}
