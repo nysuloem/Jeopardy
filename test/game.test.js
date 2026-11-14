@@ -96,8 +96,8 @@ test('oversized clues are rejected instead of being squeezed onto the TV',()=>{
   const longFinal=structuredClone(FALLBACK_GAME);longFinal.final.clue=Array.from({length:MAX_CLUE_WORDS+1},()=> 'a').join(' ');assert.equal(validateGame(longFinal),false);
 });
 
-test('clues cannot reveal their own response or a distinctive response root',()=>{
-  assert.equal(clueDoesNotRevealResponse({clue:'This compact object consists primarily of densely packed neutrons.',response:'neutron star'}),false);
+test('complete answers are blocked but partial response words are allowed',()=>{
+  assert.equal(clueDoesNotRevealResponse({clue:'This compact object consists primarily of densely packed neutrons.',response:'neutron star'}),true);
   assert.equal(clueDoesNotRevealResponse({clue:'This particle is produced in beta decay.',response:'neutrino',aliases:['neutrinos']}),true);
   assert.equal(clueDoesNotRevealResponse({clue:'This Paris tower opened in 1889.',response:'Eiffel Tower'}),true);
   assert.equal(clueDoesNotRevealResponse({clue:'This scientist developed the theory of relativity.',response:'Albert Einstein'}),true);

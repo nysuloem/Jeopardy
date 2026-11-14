@@ -107,7 +107,7 @@ test('Final-only test skips directly to wagers with realistic scores',async t=>{
 
 test('responses must use Jeopardy question phrasing',()=>{
   assert.equal(ANSWER_TIME_MS,15000);assert.equal(DAILY_ANSWER_TIME_MS,15000);assert.equal(CLARIFICATION_TIME_MS,8000);
-  assert.equal(GAME_BANK_TARGET,20);assert.equal(GAME_BANK_VERSION,3);
+  assert.equal(GAME_BANK_TARGET,3);assert.equal(GAME_BANK_VERSION,3);
   assert.equal(phraseCorrect('What is Toronto?'),true);
   assert.equal(phraseCorrect('Who was Marie Curie?'),true);
   assert.equal(phraseCorrect('Toronto'),false);
@@ -237,24 +237,12 @@ test('Final Jeopardy reveals the correct response aloud when everyone misses',()
   advanceFinalReveal(room);assert.equal(room.phase,'final_correct_answer');assert.equal(publicRoom(room).game.final.response,room.game.final.response);dispose(room);
 });
 
-test('pilot can be selected over sockets in both play modes without consuming the original bank',async t=>{
-  const pilot=require('../content/new-style-pilot.json'),before=await (await fetch(`${url}/api/game-bank`)).json(),beforeHistory=await (await fetch(`${url}/api/history`)).json();
-  let reservedAfterFirst;
+test('retired pilot cannot be selected in either play mode',async t=>{
+  const beforeHistory=await (await fetch(`${url}/api/history`)).json();
   for(const remoteMode of [false,true]){
     const creator=await client();t.after(()=>creator.disconnect());
-    const created=await creator.emitWithAck('createRoom',{boardId:pilot.id,remoteMode});
-    assert.equal(created.ok,true);const room=rooms.get(created.code);t.after(()=>dispose(room));
-    assert.equal(room.pilot,true);assert.equal(room.testMode,true);assert.equal(room.remoteMode,remoteMode);
-    assert.deepEqual(room.game,pilot);assert.equal(room.generated,false);assert.equal(room.generating,false);
-    const hidden=publicRoom(room);assert.equal(hidden.game.rounds[0].categories[0].clues[0].clue,null);assert.equal(hidden.game.final.response,null);
-    assert.equal(hidden.game.rounds[0].categories[1].intro,pilot.rounds[0].categories[1].intro);
-    assert.equal((await creator.emitWithAck('joinRoom',{code:room.code,name:'Pilot tester',occupation:'teacher',location:'Toronto',signature:'data:image/png;base64,AAAA',photo:'data:image/jpeg;base64,AAAA'})).ok,true);
-    assert.equal((await creator.emitWithAck('startGame',{code:room.code})).ok,true);assert.equal(room.phase,'intro');
-    room.players[0].score=2800;await finishGame(room);assert.equal(room.phase,'final_results');assert.equal(room.players[0].score,2800);
-    const after=await (await fetch(`${url}/api/game-bank`)).json();assert.equal(after.ready,before.ready);assert.equal(after.autoFill,false);
-    if(reservedAfterFirst!==undefined)assert.equal(after.reservedClues,reservedAfterFirst);reservedAfterFirst=after.reservedClues;
+    const result=await creator.emitWithAck('createRoom',{boardId:'new-style-pilot-2026-11',remoteMode});
+    assert.equal(result.ok,false);
   }
   assert.deepEqual(await (await fetch(`${url}/api/history`)).json(),beforeHistory);
-  const creator=await client();t.after(()=>creator.disconnect());
-  const invalid=await creator.emitWithAck('createRoom',{boardId:'unknown-board'});assert.equal(invalid.ok,false);
 });

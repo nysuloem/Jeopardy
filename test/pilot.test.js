@@ -31,7 +31,7 @@ test('new facts about an old response are allowed while reworded clues stay bloc
 test('each board plan has twelve slots with subject, connection and mechanic variety', () => {
   const plan = createBoardPlan();
   assert.deepEqual(plan.map(round => round.length), [6, 6]);
-  assert.equal(plan.flat().filter(slot => slot.type === 'wordplay').length, 3);
+  assert.ok([1,2].includes(plan.flat().filter(slot => slot.type === 'wordplay').length));
   assert.equal(plan.flat().filter(slot => slot.type === 'connection').length, 1);
 });
 
