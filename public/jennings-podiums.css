@@ -1,0 +1,48 @@
+/* The cleaned 1766 × 891 photograph and every overlay share one coordinate plane. */
+.jennings .podium-photo-set {
+  position:absolute;inset:0;z-index:1;display:flex;align-items:center;justify-content:center;
+  container-type:size;overflow:hidden;background:#02040b;
+}
+.jennings .podium-photo-set .photographed-podiums {
+  position:relative;inset:auto;margin:0;padding:0;display:block;flex:none;
+  width:min(100cqw,198.2043cqh);height:auto;aspect-ratio:1766 / 891;
+  container-type:inline-size;background:url('/assets/jennings-contestant-stage.webp') center / 100% 100% no-repeat;
+}
+.jennings .photographed-podiums .player-podium,
+.jennings .photographed-podiums .player-podium.active {
+  position:absolute;inset:0;width:100%;height:100%;max-width:none;margin:0;padding:0;
+  display:block;filter:none;transform:none;background:none;border:0;box-shadow:none;pointer-events:none;
+}
+.jennings .photographed-podiums .contestant-photo {
+  position:absolute;z-index:1;left:var(--podium-center);top:20.7%;width:13.4%;height:27%;
+  margin:0;transform:translateX(-50%);object-fit:cover;object-position:center 22%;
+  border:0;border-radius:14% 14% 0 0;box-shadow:none;
+}
+.jennings .photographed-podiums .podium {display:contents;}
+.jennings .photographed-podiums .podium-score {
+  position:absolute;z-index:2;left:var(--podium-center);top:51%;width:10.5%;height:7%;
+  transform:translateX(-50%);display:grid;place-items:center;margin:0;padding:0;
+  background:transparent;border:0;box-shadow:none;color:white;font:700 clamp(9px,2.45cqw,52px)/1 Arial,sans-serif;
+  letter-spacing:-.03em;white-space:nowrap;text-shadow:0 1px 2px #001849;
+}
+.jennings .photographed-podiums .podium-signature {
+  position:absolute;z-index:2;left:var(--podium-center);top:63.8%;width:10.5%;height:13.8%;
+  transform:translateX(-50%);display:grid;place-items:center;padding:0;
+  margin:0;background:transparent;border:0;box-shadow:none;overflow:hidden;
+}
+.jennings .photographed-podiums .podium-signature .signature {width:94%;height:86%;object-fit:contain;}
+.jennings .photographed-podiums .response-lights {
+  position:absolute;z-index:3;left:calc(var(--podium-center) - 5.9%);right:auto;top:47.6%;
+  width:11.8%;height:1.5%;margin:0;padding:0;gap:2.5%;border:0;border-radius:0;
+  background:transparent;box-shadow:none;display:flex;
+}
+.jennings .photographed-podiums .response-lights span {
+  flex:1;width:auto;height:75%;aspect-ratio:auto;border-radius:1px;
+  background:#ff2525;box-shadow:0 0 .5cqw #ff1616,0 0 .15cqw #fff8;
+}
+.jennings .photographed-podiums .response-lights span.off {opacity:0;box-shadow:none;}
+.jennings .photographed-podiums .typed-final {grid-template-rows:minmax(0,1fr) auto;gap:2%;padding:.25cqw;}
+.jennings .photographed-podiums .typed-final span {max-height:100%;font-size:clamp(8px,1.3cqw,28px);line-height:1.08;overflow-wrap:anywhere;}
+.jennings .photographed-podiums .typed-final strong {font-size:clamp(8px,1.4cqw,30px);padding-top:2%;}
+.jennings .final-hold .podium-photo-set {top:25%;}
+.jennings .final-hold .final-video-wall {position:relative;z-index:2;}
