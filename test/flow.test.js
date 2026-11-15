@@ -263,3 +263,11 @@ test('socket buzz penalty survives arming; second player wins and duplicate read
  host.emit('clueRead',{code:room.code});await pause(10);assert.equal(room.advanceAt,deadline);assert.equal(room.clueNeedsReading,false);
  assert.equal((await a.emitWithAck('buzz',{code:room.code,clueKey:'99:0:0'})).reason,'stale');
 });
+
+test('Final question-form reminder preserves the answer window, wager and retry',async t=>{
+ const room=makeRoom({testMode:true}),player=await client();t.after(()=>{player.disconnect();dispose(room);});await player.emitWithAck('joinRoom',{code:room.code,name:'Question Test',occupation:'teacher',location:'Toronto',signature:'data:image/png;base64,AAAA',photo:'data:image/jpeg;base64,AAAA'});
+ const p=room.players[0];p.score=1500;p.finalWager=500;room.phase='final_answer';room.answerDeadline=Date.now()+30000;const deadline=room.answerDeadline;
+ const invalid=await player.emitWithAck('finalAnswer',{code:room.code,answer:'Marie Curie'});assert.equal(invalid.ok,false);assert.match(invalid.error,/Who is/);assert.equal(p.finalAnswer,null);assert.equal(p.finalWager,500);assert.equal(room.answerDeadline,deadline);
+ assert.equal((await player.emitWithAck('finalAnswer',{code:room.code,answer:'Who is Marie Curie?'})).ok,true);assert.equal(p.finalAnswer,'Who is Marie Curie?');assert.equal(room.answerDeadline,deadline);
+ assert.equal(publicRoom(room).responsePrefixes,undefined);
+});

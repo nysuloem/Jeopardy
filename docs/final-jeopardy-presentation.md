@@ -1,0 +1,13 @@
+# Final Jeopardy presentation and response wording
+
+Both supplied host photographs introduce Final Jeopardy. Existing category text was removed while retaining the hosts, monitors and studio. The live category is positioned inside each photograph's own monitor coordinate plane; both photos are contained without stretching. Long categories use a smaller type size.
+
+When the server enters the timed `final_answer` phase, both eras switch to the photographed contestant stage, a lower clue strip and the countdown. Reveals focus on the active contestant. Response and wager share one white Caveat handwriting font and blue overlay, without divider lines. Responses stay hidden until `show_response`; wagers remain hidden until `show_wager`. Caveat is bundled under its included OFL licence.
+
+Final responses require a question lead plus an answer, both on the phone and on the server. An invalid submission displays a reminder, keeps the draft editable and does not lock the response or change its wager/deadline. Regular and Daily Double responses use the same validation helper.
+
+Host canonical-answer reveals now receive explicit question prefixes. A private background classification pass uses each clue and canonical response to distinguish people, groups of people, titles and other entities across the entire game, including Final. It does not regenerate or alter the game board. Local person/clue rules supply fallback wording when classification is unavailable. The prefix map and its canonical-answer keys are excluded from public room state; a prefix is exposed only alongside a legitimately revealed canonical answer.
+
+Jennings champion ending: source `Screen Recording 2026-11-15 165136.mp4`, retaining 0.00–0.74 and 2.40–6.28 seconds with a 25 ms crossfade. This removes “with” and the specific recorded winning amount while keeping the champion announcement and subsequent applause/congratulation segment. Soft edge fades and conservative playback volume are applied. The old generated narration/applause is used only if the real clip cannot play. Speech-recognition verification found no retained amount words.
+
+Validation covers server-side retries and timers, client draft preservation and inline reminders, entity classification and private state, both eras' introduction/thinking markup, staged answer/wager visibility and the champion clip's completion/error handling. Browser preview could not connect to the local workspace, so visual validation is limited to the supplied/restored images and generated DOM fixtures. Production assets are checked byte-for-byte after deployment.
