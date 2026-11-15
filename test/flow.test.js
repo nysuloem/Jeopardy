@@ -246,3 +246,20 @@ test('retired pilot cannot be selected in either play mode',async t=>{
   }
   assert.deepEqual(await (await fetch(`${url}/api/history`)).json(),beforeHistory);
 });
+
+test('socket buzz penalty survives arming; second player wins and duplicate read does not reopen',async t=>{
+ const room=makeRoom({testMode:true}),host=await client(),a=await client(),b=await client();t.after(()=>{host.disconnect();a.disconnect();b.disconnect();dispose(room);});
+ await host.emitWithAck('watchRoom',{code:room.code});
+ for(const [c,name] of [[a,'Early'],[b,'Ready']])assert.equal((await c.emitWithAck('joinRoom',{code:room.code,name,occupation:'teacher',location:'Toronto',signature:'data:image/png;base64,AAAA',photo:'data:image/jpeg;base64,AAAA'})).ok,true);
+ room.selected={category:0,row:0};room.phase='clue';room.canBuzz=false;room.clueNeedsReading=true;host.emit('clueRead',{code:room.code,clueKey:'99:0:0'});await pause(10);assert.equal(room.canBuzz,false);
+ assert.equal((await a.emitWithAck('buzz',{code:room.code})).reason,'early');
+ host.emit('clueRead',{code:room.code});await pause(10);
+ assert.equal((await a.emitWithAck('buzz',{code:room.code})).reason,'locked');
+ assert.equal((await b.emitWithAck('buzz',{code:room.code})).ok,true);
+ assert.equal(room.buzzedId,b.id);assert.equal((await a.emitWithAck('buzz',{code:room.code})).ok,false);
+ assert.equal(publicRoom(room).buzzerLockouts,undefined);
+ // Re-armed wrong-answer window cannot be prolonged by duplicate completion signals.
+ room.phase='review';room.lastJudgment={playerId:b.id,correct:false};advanceReview(room);const deadline=room.advanceAt;
+ host.emit('clueRead',{code:room.code});await pause(10);assert.equal(room.advanceAt,deadline);assert.equal(room.clueNeedsReading,false);
+ assert.equal((await a.emitWithAck('buzz',{code:room.code,clueKey:'99:0:0'})).reason,'stale');
+});

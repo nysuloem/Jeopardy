@@ -1,0 +1,21 @@
+/* All classic-era overlays use the cleaned photograph's own coordinate plane. */
+.trebek .podium-photo-set{position:absolute;inset:0;z-index:1;display:flex;align-items:center;justify-content:center;container-type:size;overflow:hidden;background:#02040b}
+.trebek .podium-photo-set .photographed-podiums{position:relative;inset:auto;margin:0;padding:0;display:block;flex:none;width:min(100cqw,127.6577cqh);height:auto;aspect-ratio:1417/1110;container-type:inline-size;background:url('/assets/trebek-contestant-stage.webp') center/100% 100% no-repeat}
+.trebek .photographed-podiums .player-podium,.trebek .photographed-podiums .player-podium.active{position:absolute;inset:0;width:100%;height:100%;max-width:none;margin:0;padding:0;display:block;filter:none;transform:none;background:none;border:0;box-shadow:none;pointer-events:none}
+.trebek .photographed-podiums .contestant-photo{position:absolute;z-index:1;left:var(--podium-center);top:16%;width:16%;height:25%;margin:0;transform:translateX(-50%);object-fit:cover;object-position:center 22%;border:0;border-radius:14% 14% 0 0;box-shadow:none}
+.trebek .photographed-podiums .podium{display:contents}
+.trebek .photographed-podiums .podium-score{position:absolute;z-index:2;left:var(--podium-center);top:44.6%;width:16%;height:6.2%;transform:translateX(-50%);display:grid;place-items:center;margin:0;padding:0;background:transparent;border:0;box-shadow:none;color:white;font:700 clamp(9px,3.1cqw,64px)/1 Arial,sans-serif;letter-spacing:-.03em;white-space:nowrap;text-shadow:0 1px 2px #001849}
+.trebek .photographed-podiums .podium-signature{position:absolute;z-index:2;left:var(--podium-center);top:54.5%;width:17%;height:15.7%;transform:translateX(-50%);display:grid;place-items:center;padding:1% 1.8%;margin:0;background:transparent;border:0;box-shadow:none;overflow:hidden;clip-path:polygon(0 0,100% 0,82% 100%,18% 100%)}
+.trebek .photographed-podiums .podium-signature .signature{width:100%;height:90%;object-fit:contain}
+.trebek .photographed-podiums .response-lights{position:absolute;z-index:3;left:calc(var(--podium-center) - 6.35%);right:auto;top:40.7%;width:12.7%;height:1%;margin:0;padding:0;gap:3.5%;border:0;border-radius:0;background:transparent;box-shadow:none;display:flex}
+.trebek .photographed-podiums .response-lights span{flex:1;width:auto;height:75%;aspect-ratio:auto;border-radius:1px;background:#ff2525;box-shadow:0 0 .5cqw #ff1616,0 0 .15cqw #fff8}
+.trebek .photographed-podiums .response-lights span.off{opacity:0;box-shadow:none}
+.trebek .photographed-podiums .typed-final{grid-template-rows:minmax(0,1fr) auto;gap:2%;padding:1% 2.8%}
+.trebek .photographed-podiums .typed-final span{max-height:100%;font-size:clamp(8px,1.65cqw,36px);line-height:1.08;overflow-wrap:anywhere}
+.trebek .photographed-podiums .typed-final strong{font-size:clamp(8px,1.9cqw,40px);padding-top:2%}
+.trebek .final-hold .podium-photo-set{top:25%}.trebek .final-hold .final-video-wall{position:relative;z-index:2}
+/* These signal lights illuminate only when the server arms the buzzers. */
+.buzzer-ready-lights{position:absolute;left:.35%;top:12%;bottom:25%;width:.65%;z-index:10;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none}
+.buzzer-ready-lights.right{left:auto;right:.35%}.buzzer-ready-lights i{height:12%;width:100%;background:#242937;border:1px solid #656a76;border-radius:2px}
+.buzzers-armed .buzzer-ready-lights i{background:#fff4be;border-color:#fff;box-shadow:0 0 12px #fff6ba,0 0 4px white}
+.buzz.early-lockout{background:#722233;color:#fff;border-color:#f99}

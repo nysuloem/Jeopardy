@@ -34,3 +34,4 @@ test('host introduction video waits for its end before continuing',async()=>{
  let completed=false;h.result.then(()=>completed=true);await Promise.resolve();assert.equal(completed,false);
  h.video.onended();assert.equal(await h.result,'ended');assert.equal(h.target.innerHTML,'');
 });
+for(const [src,label] of [['/assets/trebek-opening-web.mp4','Trebek opening'],['/assets/trebek-host-intro-web.mp4','Trebek entrance']])test(`${label} uses the cancellable full-video player`,async()=>{const h=setup(undefined,src);assert(h.target.innerHTML.includes(src));h.video.onended();assert.equal(await h.result,'ended');assert.equal(h.target.innerHTML,'');});
