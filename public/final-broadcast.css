@@ -20,3 +20,7 @@
 .jennings .final-intro-photo{width:min(100cqw,196.7562cqh);aspect-ratio:1759/894;background-image:url('/assets/jennings-final-intro.webp')}
 .final-photo-category{font-size:clamp(14px,var(--final-category-size,3.5cqw),76px)}
 .jennings .final-photo-category{left:53.5%;top:24%;width:20.8%;height:22.7%;padding:1.1%;font-size:clamp(14px,var(--final-category-size,3.5cqw),70px)}
+
+/* Category and clue occupy the same photographed host monitor before thinking time. */
+.final-photo-category.final-photo-clue{padding:1%;font:700 clamp(8px,1.8cqw,38px)/1.12 Georgia,'Times New Roman',serif;overflow:hidden;overflow-wrap:normal;text-shadow:1px 2px 2px #001047}
+.jennings .final-photo-category.final-photo-clue{padding:1.1%;font-size:clamp(8px,1.5cqw,32px)}

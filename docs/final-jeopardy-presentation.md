@@ -2,6 +2,8 @@
 
 Both supplied host photographs introduce Final Jeopardy. Existing category text was removed while retaining the hosts, monitors and studio. The live category is positioned inside each photograph's own monitor coordinate plane; both photos are contained without stretching. Long categories use a smaller type size.
 
+After wagers, the clue replaces the category inside the same photographed host monitor while it is read aloud. Trebek’s lower Final Jeopardy logo stays visible; Jennings’s freestanding monitor carries the clue. Text is fitted to each monitor’s bounds. The former separate clue screen is no longer rendered.
+
 When the server enters the timed `final_answer` phase, both eras switch to the photographed contestant stage, a lower clue strip and the countdown. Reveals focus on the active contestant. Response and wager share one white Caveat handwriting font and blue overlay, without divider lines. Responses stay hidden until `show_response`; wagers remain hidden until `show_wager`. Caveat is bundled under its included OFL licence.
 
 Final responses require a question lead plus an answer, both on the phone and on the server. An invalid submission displays a reminder, keeps the draft editable and does not lock the response or change its wager/deadline. Regular and Daily Double responses use the same validation helper.
